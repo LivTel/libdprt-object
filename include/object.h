@@ -1,5 +1,5 @@
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.1 2004-01-26 15:19:19 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.2 2004-01-29 12:27:32 cjm Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -123,10 +123,10 @@ extern void Object_Get_Current_Time_String(char *time_string,int string_length);
 extern void Object_Log_Format(int level,char *format,...);
 extern void Object_Log(int level,char *string);
 extern void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string));
-extern void Object_Set_Log_Filter_Function(int (*filter_fn)(int level,char *string));
+extern void Object_Set_Log_Filter_Function(int (*filter_fn)(int level));
 extern void Object_Log_Handler_Stdout(int level,char *string);
 extern void Object_Set_Log_Filter_Level(int level);
-extern int Object_Log_Filter_Level_Absolute(int level,char *string);
-extern int Object_Log_Filter_Level_Bitwise(int level,char *string);
+extern int Object_Log_Filter_Level_Absolute(int level);
+extern int Object_Log_Filter_Level_Bitwise(int level);
 
 #endif

@@ -1,5 +1,5 @@
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.2 2004-01-29 12:27:32 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.3 2004-01-29 13:29:04 cjm Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -118,6 +118,7 @@ extern int Object_List_Get(float *image,float image_median,int naxis1,int naxis2
 extern int Object_List_Free(Object **list);
 extern void Object_Error(void);
 extern void Object_Error_To_String(char *error_string);
+extern int Object_Get_Error_Number(void);
 extern void Object_Warning(void);
 extern void Object_Get_Current_Time_String(char *time_string,int string_length);
 extern void Object_Log_Format(int level,char *format,...);

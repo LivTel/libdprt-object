@@ -1,5 +1,24 @@
+/*   
+    Copyright 2006, Astrophysics Research Institute, Liverpool John Moores University.
+
+    This file is part of libobject.
+
+    libobject is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    libobject is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with libobject; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.1 2004-01-26 15:16:48 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.2 2006-05-16 18:48:03 cjm Exp $
 */
 /**
  * object_test.c Tests libdprt_object.so. Median and Background Standard Deviation can be
@@ -42,7 +61,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_test.c,v 1.1 2004-01-26 15:16:48 cjm Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.2 2006-05-16 18:48:03 cjm Exp $";
 /**
  * Filename of file to be processed.
  */
@@ -540,6 +559,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.1  2004/01/26 15:16:48  cjm
+** Initial revision
+**
 **
 */
 

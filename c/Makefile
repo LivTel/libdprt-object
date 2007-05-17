@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.3 2004-08-06 14:14:29 cjm Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.4 2007-05-17 17:38:19 cjm Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -81,6 +81,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.3  2004/08/06 14:14:29  cjm
+# New makedepend path option.
+#
 # Revision 1.2  2004/01/29 12:28:00  cjm
 # Reduced and commented LOGGING level, performance enhancement.
 # Added MEMORYCHECK CFLAGS for the insane.
@@ -91,12 +94,12 @@ backup: tidy
 #
 # DO NOT DELETE
 
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2/include/stdarg.h
+/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2.2/include/stdarg.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/stdio.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/features.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/sys/cdefs.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/gnu/stubs.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2/include/stddef.h
+/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2.2/include/stddef.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/types.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/wordsize.h
 /home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/typesizes.h

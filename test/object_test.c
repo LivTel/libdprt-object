@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.2 2006-05-16 18:48:03 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.3 2007-05-17 18:02:05 cjm Exp $
 */
 /**
  * object_test.c Tests libdprt_object.so. Median and Background Standard Deviation can be
@@ -61,7 +61,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_test.c,v 1.2 2006-05-16 18:48:03 cjm Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.3 2007-05-17 18:02:05 cjm Exp $";
 /**
  * Filename of file to be processed.
  */
@@ -149,12 +149,12 @@ int main(int argc, char *argv[])
 	fprintf(stdout,"The procedure took %d ms.\n",difftimems(start_time,stop_time));
 	fprintf(stdout,"The seeing was %f with seeing_flag = %d (0 is good).\n",seeing,seeing_flag);
 	/* print out results */
-	fprintf(stdout,"objnum\txpos\typos\ttotal\tnumpix\n");
+	fprintf(stdout,"objnum\txpos\typos\tfwhmx\tfwhmy\ttotal\tnumpix\n");
 	object = object_list;
 	while(object != NULL)
 	{
-		fprintf(stdout,"%d\t%.2f\t%.2f\t%.2f\t\t%d\n",object->objnum,object->xpos,object->ypos,object->total,
-			object->numpix);
+		fprintf(stdout,"%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t\t%d\n",object->objnum,object->xpos,object->ypos,
+			object->fwhmx,object->fwhmy,object->total,object->numpix);
 		object = object->nextobject;
 	}
 	/* free image */
@@ -559,6 +559,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.2  2006/05/16 18:48:03  cjm
+** gnuify: Added GNU General Public License.
+**
 ** Revision 1.1  2004/01/26 15:16:48  cjm
 ** Initial revision
 **

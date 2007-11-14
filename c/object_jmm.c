@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.2 2007-11-08 17:02:03 jmm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.3 2007-11-14 13:38:31 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.2 $
+ * @version $Revision: 1.3 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.2  2007/11/08 17:02:03  jmm
+  Lots of changes...!
+
 
 */
 
@@ -112,7 +115,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_jmm.c,v 1.2 2007-11-08 17:02:03 jmm Exp $";
+static char rcsid[] = "$Id: object_jmm.c,v 1.3 2007-11-14 13:38:31 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -176,6 +179,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   Object *w_object = NULL;
   Object *last_object = NULL;
   Object *next_object = NULL;
+  HighPixel *curpix = NULL;
   float fwhm;
   float *fwhm_list = NULL;
   int y,x,count,done,is_stellar,mid;
@@ -382,6 +386,26 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       w_object = next_object;
     }
   last_object->nextobject=NULL;
+  /* extra debug - list connected pixels in all objects */
+#if LOGGING > 5
+  w_object = (*first_object);
+  while(w_object != NULL)
+  {
+    Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels for object %d at %.2f,%.2f(%d).",
+		      w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
+    curpix = w_object->highpixel;
+    while(curpix != NULL)
+      {
+	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels:object:%d pixel %d,%d value %.2f.",
+		      w_object->objnum,curpix->x,curpix->y,curpix->value);
+	/* goto next pixel */
+	 curpix = curpix->next_pixel;
+      }
+    /* goto next object */
+      w_object = w_object->nextobject;		
+  }
+#endif
+
   /* find fwhm */
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding FWHM of objects.");
@@ -1233,6 +1257,9 @@ static int Sort_Float(const void *data1,const void *data2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.2  2007/11/08 17:02:03  jmm
+** Lots of changes...!
+**
 ** Revision 1.1  2007/09/18 17:24:41  jmm
 ** Initial revision
 **

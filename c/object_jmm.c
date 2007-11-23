@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.3 2007-11-14 13:38:31 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.4 2007-11-23 19:44:49 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.3 $
+ * @version $Revision: 1.4 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.3  2007/11/14 13:38:31  eng
+  Added extra debugging to print out pixel lists for objects. (CJM)
+
   Revision 1.2  2007/11/08 17:02:03  jmm
   Lots of changes...!
 
@@ -115,7 +118,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_jmm.c,v 1.3 2007-11-14 13:38:31 eng Exp $";
+static char rcsid[] = "$Id: object_jmm.c,v 1.4 2007-11-23 19:44:49 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -1132,7 +1135,7 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
 
 	
   /*
-    __        _          
+     __        _          
     / _|_ __ _| |_  _ __  
     |  _\ V  V / ' \| '  \ 
     |_|  \_/\_/|_||_|_|_|_|
@@ -1157,6 +1160,8 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   Sum_I_vert_cut = 0;                             /* Sum of pixel values through vertical transect */
   Sigma_x = 0;                                    
   Sigma_y = 0;
+
+
 
   /*
     ---------------------------
@@ -1226,8 +1231,14 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   w_object->fwhmy = 2.3548 * Sigma_y;
   (*fwhm) = (w_object->fwhmx + w_object->fwhmy)/2;
 
+  
 
-	
+
+  /*
+    -----------------
+    DIAGNOSTIC OUTPUT
+    -----------------
+  */
   fprintf(test_of,"X: %f\t%f\t%f\n",dummy_x,dummy_v,Sigma_x);
   fprintf(test_of,"Y: %f\t%f\t%f\n",dummy_y,dummy_v,Sigma_y);
 	
@@ -1257,6 +1268,9 @@ static int Sort_Float(const void *data1,const void *data2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.3  2007/11/14 13:38:31  eng
+** Added extra debugging to print out pixel lists for objects. (CJM)
+**
 ** Revision 1.2  2007/11/08 17:02:03  jmm
 ** Lots of changes...!
 **

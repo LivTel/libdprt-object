@@ -29,7 +29,7 @@
 
 */
 /* object_test_jmm.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.1 2007-09-18 17:20:37 jmm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.2 2007-11-23 19:41:56 eng Exp $
 */
 
 
@@ -43,10 +43,18 @@
  * </pre>
  */
 
+
+/*
+  $Log: not supported by cvs2svn $
+*/
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <time.h>
+#include <math.h>
 #include "fitsio.h"
 #include "object_jmm.h"
 
@@ -74,7 +82,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_jmm.c,v 1.1 2007-09-18 17:20:37 jmm Exp $";
+static char rcsid[] = "$Id: object_test_jmm.c,v 1.2 2007-11-23 19:41:56 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -107,6 +115,12 @@ int main(int argc, char *argv[])
   fPtr = fopen("object_test_output.txt", "w");
 
 
+  /* EXTRA FOR CHRIS SIMPSON STUFF */
+  float fudge;
+  float peak_abs;
+  float peak_over_thresh,thresh_over_peak;
+  float denominator;
+  float fwhmx2,fwhmy2;
 
   /*
     ----
@@ -168,18 +182,36 @@ int main(int argc, char *argv[])
     return 4;
   }
 
-  /* print out time taken & results
-     ------------------------------ */
+  /* print out time taken & column headers for results
+     ------------------------------------------------- */
   fprintf(stdout,"The procedure took %d ms.\n",difftimems(start_time,stop_time));
   fprintf(stdout,"The seeing was %f with seeing_flag = %d (0 is good).\n",seeing,seeing_flag);
-  fprintf(stdout,"objnum\txpos\typos\tfwhmx\tfwhmy\ttotal\tnumpix\n");
+  fprintf(stdout,"objnum\txpos\typos\tfwhmx\tfwhmy\tfwhmx2\tfwhmy2\ttotal\tnumpix\tpeak\n");
   object = object_list;
+
+
+  /* loop through objects calculating FWHM2 in process
+     ------------------------------------------------- */
   while(object != NULL){
-    fprintf(stdout,"%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t\t%d\n",
-	    object->objnum,object->xpos,
-	    object->ypos,object->fwhmx,
-	    object->fwhmy,object->total,
-	    object->numpix);
+
+    fudge = 1;                              /* make tweakable by argument later */
+
+    peak_abs = object->peak + Median;       /* peak is found -after- median is subtracted, & threshold is an absolute value. */
+    peak_over_thresh = peak_abs / thresh;
+    thresh_over_peak = thresh / peak_abs;
+    denominator = 1.0 - fudge*(thresh_over_peak)*sqrt(2.93*log(peak_over_thresh));  /* Chris Simpson calc */
+
+    fwhmx2 = sqrt( pow(object->fwhmx,2)/denominator);
+    fwhmy2 = sqrt( pow(object->fwhmy,2)/denominator);
+    
+    fprintf(stdout,"%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\n",
+	    object->objnum,
+	    object->xpos,object->ypos,
+	    object->fwhmx,object->fwhmy,
+	    fwhmx2,fwhmy2,
+	    object->total,
+	    object->numpix,
+	    peak_abs);
     object = object->nextobject;
   }
 
@@ -644,6 +676,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.1  2007/09/18 17:20:37  jmm
+** Initial revision
+**
 ** Revision 1.3  2007/05/17 18:02:05  cjm
 ** Now prints out fwhmx/fwhmy.
 **

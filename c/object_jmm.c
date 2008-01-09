@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.4 2007-11-23 19:44:49 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.5 2008-01-09 14:15:32 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,20 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.4 $
+ * @version $Revision: 1.5 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.4  2007/11/23 19:44:49  eng
+  Thought some tweaks here were necessary to enable testing of Chris Simpson's idea
+  of a FWHM workaround, but turns out it could all be done in object_test_jmm.c
+  instead. Initially added code was then deleted again, so apart from some different
+  whitespace, the code in this version therefore should be no different from that
+  in the previous version.
+
   Revision 1.3  2007/11/14 13:38:31  eng
   Added extra debugging to print out pixel lists for objects. (CJM)
 
@@ -66,6 +73,11 @@
 #include <math.h>
 #include <time.h>
 #include "object_jmm.h"
+#include <float.h>
+
+/* for new fwhm */
+#include <gsl/gsl_sf.h>
+
 
 /* ------------------------------------------------------- */
 /* hash definitions */
@@ -112,13 +124,25 @@ struct Log_Struct
   int Log_Filter_Level;
 };
 
+
+/*
+  for new fwhm
+*/
+struct radpoint
+{
+  float r;
+  float z;
+};
+
+
+
 /* ------------------------------------------------------- */
 /* internal variables */
 /* ------------------------------------------------------- */
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_jmm.c,v 1.4 2007-11-23 19:44:49 eng Exp $";
+static char rcsid[] = "$Id: object_jmm.c,v 1.5 2008-01-09 14:15:32 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -156,6 +180,19 @@ static int Sort_Float(const void *data1,const void *data2);
 /* ------------------------------------------------------- */
 /* external functions */
 /* ------------------------------------------------------- */
+
+/*
+  for new fwhm
+*/
+int fltcmp(const void *v1, const void *v2){
+  return (*(int *)v1 - *(int *)v2);
+}
+float moffat(float x, float Io, float a, float b){
+  float Ix;
+  Ix = Io * pow((((x/a)*(x/a)) + 1.0),-b);
+  return Ix;
+}
+
 /**
  * Routine to get a list of objects on the image.
  * @param image A float array containing the image data.
@@ -1026,6 +1063,10 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
   return TRUE;
 }
 
+
+
+
+
 /**
  * Routine to calculate the FWHM of the specified object.
  * @param w_object The object to calculate the FWHM from.
@@ -1054,25 +1095,36 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   /* pixel pointer */
   HighPixel *curpix;
 
-
-  float xpos,ypos;                            /* barycentre coordinates */
-  int int_xpos,int_ypos;                      /* nearest pixel to barycentre */
-  float delta_x,delta_y;                      /* dist. btwn pixel and real (float) barycentre */
-  float dummy_x,dummy_y,dummy_v;              /* dummy vars for sigma calc */
-  float Sum_I_horiz_cut,Sum_I_vert_cut;       /* Sum of pixel values along transects */
-  float Sigma_x,Sigma_y;
-  float pix_I;                                /* pixel value */
-  int pix_x, pix_y;                           /* pixel x position, y position */
-  float pix_v;                                /* pixel value */
+  /* printf("- Object %d:\n",w_object->objnum); */
+  
 
 
-  /* TEST ONLY   */
-  FILE *test_of;
-  test_of = fopen("blob.txt", "w");
-	
+  /* NEW FWHM */
+  struct radpoint *p = NULL;
+  int pixnum;
+  float delta_x,delta_y;
+  float LSQ = FLT_MAX - 1;
+  float peak;
+  float ma,mb;
+  float sum_of_squares;
+  int nn;
+  float y_data,y_moffat;
+  float dy2;
+  float min_a,min_b;
+  float step_a,step_b;
+  float fw;
+  
 
 
+  /* printf("-- 2nd moment\n"); */
 
+  /*
+     ___         _                           _   
+    |_  )_ _  __| |  _ __  ___ _ __  ___ _ _| |_ 
+     / /| ' \/ _` | | '  \/ _ \ '  \/ -_) ' \  _|
+    /___|_||_\__,_| |_|_|_\___/_|_|_\___|_||_\__|
+                                             
+  */
   /* calculate the 2nd moments of the ellipse in x y and xy  */
   /* uses equations from SEXtractor manual and PISA manual -
      SUN109.1 */
@@ -1108,8 +1160,6 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   else
     theta=0;
   
-  /* ********************** */
- 
   diff=major-minor;
   if (diff<=major*0.3)
     {
@@ -1125,129 +1175,137 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
 
 
 
-
-
-
-
-
-
-
-
-	
+  /* printf("-- fwhm\n"); */
+  
   /*
-     __        _          
-    / _|_ __ _| |_  _ __  
+      __        _          
+     / _|_ __ _| |_  _ __  
     |  _\ V  V / ' \| '  \ 
     |_|  \_/\_/|_||_|_|_|_|
+    
+    for stellar objects only?
 	  
   */
 
 
-  /*
-    ----------
-    INITIALISE
-    ----------
-  */
-  xpos = w_object->xpos;
-  ypos = w_object->ypos;
-  curpix = w_object->highpixel;
-  delta_x = 0.0;                                  /* dist. btwn x and real barycentre x position (float) */
-  delta_y = 0.0;                                  /* dist. btwn y and real barycentre y position (float) */
-  dummy_x = 0;                                    
-  dummy_y = 0;
-  dummy_v = 0;
-  Sum_I_horiz_cut = 0;                            /* Sum of pixel values through horizontal transect */
-  Sum_I_vert_cut = 0;                             /* Sum of pixel values through vertical transect */
-  Sigma_x = 0;                                    
-  Sigma_y = 0;
+  if (w_object->is_stellar == FALSE){
+    /* printf("--- object %d is nonstellar; assigning dummy FWHM.\n",w_object->objnum); */
+    w_object->fwhmx = 999.0;
+    w_object->fwhmy = 999.0;
+    (*fwhm) = 999.0;
+  }
+  else {
 
-
-
-  /*
-    ---------------------------
-    NEAREST PIXEL TO BARYCENTRE
-    ---------------------------
-  */
-  int_ypos = floor((w_object->ypos)+0.5); 	/* ypos nearest int */
-  int_xpos = floor((w_object->xpos)+0.5); 	/* xpos nearest int */
-
-
-  /*
-    --------------------------------
-    RUN THROUGH ALL PIXELS IN OBJECT
-    --------------------------------
-  */
-  while(curpix !=NULL)
-    {
-
-
-      /* if on horizontal transect
-	 ------------------------- */
-      /* 	  if ((curpix->y) == int_ypos){                 /\* if pixel's y position is same as horizontal transect's *\/ */
-      /* 	    pix_I = curpix->value;                      /\* pixel value *\/    */
-      /* 	    delta_x = curpix->x - xpos;                 /\* dist. btwn x and real barycentre x position (float) *\/ */
-      /* 	    dummy_x += (pix_I * (delta_x*delta_x)); */
-      /* 	    Sum_I_horiz_cut += pix_I;                   /\* Sum of pixel values through horizontal transect *\/ */
-      /* 	  } */
-
-      /* 	  /\* if on vertical transect */
-      /* 	     ----------------------- *\/ */
-      /* 	  if((curpix->x) == int_xpos){ */
-      /* 	    pix_I = curpix->value;                      /\* pixel value *\/  */
-      /* 	    delta_y = curpix->y - ypos;                 /\* dist. btwn y and real barycentre y position (float) *\/ */
-      /* 	    dummy_y += (pix_I * (delta_y*delta_y)); */
-      /* 	    Sum_I_vert_cut += pix_I;                    /\* Sum of pixel values through vertical transect *\/ */
-
-      /* 	  } */
-	   
-
-      pix_x = curpix->x;
-      pix_y = curpix->y;
-      pix_v = curpix->value;
-	  
-      dummy_x += (pix_v * pow((pix_x-xpos),2));
-      dummy_y += (pix_v * pow((pix_y-ypos),2));
-      dummy_v += pix_v;
-	  
-      curpix=curpix->next_pixel;
+    /*
+      ----------
+      INITIALISE
+      ----------
+    */
+    /* printf("-- initialise\n"); */
+    curpix = w_object->highpixel;
+    p = (struct radpoint*) malloc(w_object->numpix*sizeof(struct radpoint));
+    if (p == NULL){
+      printf("p is NULL!\n");
+      exit(100);
     }
 
 
-  /*
-    ---------------
-    CALCULATE SIGMA
-    ---------------
-  */
-  Sigma_x = sqrt( dummy_x / dummy_v );
-  Sigma_y = sqrt( dummy_y / dummy_v );
+    /*
+      ---------------------------------------------------
+      CREATE RADIAL PROFILE OF OBJECT IN ARRAY OF STRUCTS
+      ---------------------------------------------------
+    */
+    /* printf("-- make radial profile\n"); */
+    pixnum = 0;
+    while(curpix !=NULL){
+
+      delta_x = curpix->x - w_object->xpos;
+      delta_y = curpix->y - w_object->ypos;
+      p[pixnum].r = (float) sqrt( delta_x*delta_x + delta_y*delta_y );
+      p[pixnum].z = curpix->value;
+      /*printf("--- [%d,%d]\t%d-%.2f=%.2f\t%d-%.2f=%.2f\t%.2f\t\t%.2f\n", \
+	     w_object->objnum,pixnum,\
+	     curpix->x,w_object->xpos,delta_x,\
+	     curpix->y,w_object->ypos,delta_y,\
+	     p[pixnum].r,p[pixnum].z);*/
+      pixnum++;
+      curpix=curpix->next_pixel;
+    }
+    
+      
 
 
-  /*
-    --------------
-    CALCULATE FWHM
-    --------------
-  */
-  w_object->fwhmx = 2.3548 * Sigma_x;
-  w_object->fwhmy = 2.3548 * Sigma_y;
-  (*fwhm) = (w_object->fwhmx + w_object->fwhmy)/2;
+    /*
+      ---------------------
+      SORT ARRAY OF STRUCTS
+      ---------------------
+    */
+    /* printf("-- qsort\n"); */
+    qsort (p, w_object->numpix, sizeof (struct radpoint), fltcmp);
+
+
+    /*
+      ----------------------------------------
+      LOOP THROUGH MOFFAT PARAMS - BRUTE FORCE
+      ----------------------------------------
+    */
+  
+    /* printf("-- moffat loop\n"); */
+
+    /* approximate peak value to that of closest pixel */
+    peak = p[0].z;
+
+    /* loop moffat a,b */
+    step_a = 0.1;
+    step_b = 0.1;
+    for (ma=0.1;ma<=5.0;ma+=step_a){
+      for (mb=0.1;mb<=5.0;mb+=step_b){
+
+	/* initialise sum of squares for this a,b run */
+	sum_of_squares = 0.0;
+
+	/* run through data points */
+	for (nn=0;nn<w_object->numpix;nn++){	
+	  y_data = p[nn].z;
+	  y_moffat = moffat(p[nn].r, peak, ma, mb);
+	  dy2 = pow((y_data - y_moffat),2);
+	  sum_of_squares += dy2;
+	}
+      
+	/* if this sum of squares is less than current minimum,
+	   make this the new minimum & remember current values
+	   of ma & mb. */
+      
+	if (sum_of_squares < LSQ){
+	  LSQ = sum_of_squares;
+	  min_a = ma;
+	  min_b = mb;
+	}
+      
+      } /* next mb */
+    } /* next ma */
 
   
+    /* printf("-- calc FWHM\n"); */
+    /* Calculate FWHM from ma, mb */
+    fw = 2.0 * min_a * sqrt( pow(2.0,(1.0/min_b)) - 1.0 );
+
+    /* printf("-- write to object struct\n"); */
+    /* Put in object struct requirements */
+    w_object->fwhmx = fw;
+    w_object->fwhmy = fw;
+    (*fwhm) = fw;
 
 
-  /*
-    -----------------
-    DIAGNOSTIC OUTPUT
-    -----------------
-  */
-  fprintf(test_of,"X: %f\t%f\t%f\n",dummy_x,dummy_v,Sigma_x);
-  fprintf(test_of,"Y: %f\t%f\t%f\n",dummy_y,dummy_v,Sigma_y);
-	
-	
-  fclose (test_of);
+    /*printf("%d\t%f\t%f\t%f\n",w_object->objnum,min_a,min_b,fw);*/
 
-} 
+    /* printf("-- clear struct\n"); */
+    /* Clear struct 'p' memory */
+    if (p != NULL)
+      free(p);
+  } /* end of if stellar flag TRUE */
 
-
+}
 
 
 
@@ -1268,6 +1326,13 @@ static int Sort_Float(const void *data1,const void *data2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.4  2007/11/23 19:44:49  eng
+** Thought some tweaks here were necessary to enable testing of Chris Simpson's idea
+** of a FWHM workaround, but turns out it could all be done in object_test_jmm.c
+** instead. Initially added code was then deleted again, so apart from some different
+** whitespace, the code in this version therefore should be no different from that
+** in the previous version.
+**
 ** Revision 1.3  2007/11/14 13:38:31  eng
 ** Added extra debugging to print out pixel lists for objects. (CJM)
 **

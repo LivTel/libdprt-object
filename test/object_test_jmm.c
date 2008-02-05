@@ -29,7 +29,7 @@
 
 */
 /* object_test_jmm.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.2 2007-11-23 19:41:56 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.3 2008-02-05 18:08:38 eng Exp $
 */
 
 
@@ -46,6 +46,16 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.2  2007/11/23 19:41:56  eng
+  Changes to calculate secondary FWHM based on info from Chris Simpson.
+  These extra fwhm values (fwhmx2, fwhmy2) plus the peak pixel value with
+  median added back to give an absolute value (peak_abs), are now output
+  too.
+
+  Information for L1SEEING testing purposes: the extra columns are ignored
+  by L1psf2 which just looks at the first few columns for object coordinates.
+  PrintL1psf2 is the script that handles these extra columns.
+
 */
 
 
@@ -57,6 +67,8 @@
 #include <math.h>
 #include "fitsio.h"
 #include "object_jmm.h"
+
+
 
 /* ------------------------------------------------------- */
 /* internal hash definitions */
@@ -82,7 +94,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_jmm.c,v 1.2 2007-11-23 19:41:56 eng Exp $";
+static char rcsid[] = "$Id: object_test_jmm.c,v 1.3 2008-02-05 18:08:38 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -93,6 +105,8 @@ static float Median = 10.0;                                /* Median of backgrou
 static float Background_SD = 3.0;                          /* Std deviation of background (default 3) */
 static float Threshold = 0.0;
 static int Log_Level = 0;                                  /* Log level */
+/* for new fwhm */
+static int fltcmp(const void *v1, const void *v2);
 
 /* ------------------------------------------------------- */
 /* external functions */
@@ -110,17 +124,14 @@ int main(int argc, char *argv[])
   int retval;
   float BGSD_factor;
 
+  float peak_abs;
+  float fwhmx2,fwhmy2;
+
+
   /* TEST ONLY   */
   FILE *fPtr;
-  fPtr = fopen("object_test_output.txt", "w");
+  fPtr = fopen("test.txt", "w");
 
-
-  /* EXTRA FOR CHRIS SIMPSON STUFF */
-  float fudge;
-  float peak_abs;
-  float peak_over_thresh,thresh_over_peak;
-  float denominator;
-  float fwhmx2,fwhmy2;
 
   /*
     ----
@@ -183,35 +194,26 @@ int main(int argc, char *argv[])
   }
 
   /* print out time taken & column headers for results
-     ------------------------------------------------- */
+     ------------------------------------------------- */  
   fprintf(stdout,"The procedure took %d ms.\n",difftimems(start_time,stop_time));
   fprintf(stdout,"The seeing was %f with seeing_flag = %d (0 is good).\n",seeing,seeing_flag);
-  fprintf(stdout,"objnum\txpos\typos\tfwhmx\tfwhmy\tfwhmx2\tfwhmy2\ttotal\tnumpix\tpeak\n");
+  fprintf(stdout,"objnum\txpos\typos\tfwhm\tmf_k\tmf_a\tmf_b\ttotal\tnumpix\tpeak\n");
   object = object_list;
-
-
-  /* loop through objects calculating FWHM2 in process
-     ------------------------------------------------- */
   while(object != NULL){
+    peak_abs = object->peak + Median;
 
-    fudge = 1;                              /* make tweakable by argument later */
+/*     fwhmx2 = 999.0; /\* placeholders - too much hassle to rejig wrapper scripts *\/ */
+/*     fwhmy2 = 999.0; */
 
-    peak_abs = object->peak + Median;       /* peak is found -after- median is subtracted, & threshold is an absolute value. */
-    peak_over_thresh = peak_abs / thresh;
-    thresh_over_peak = thresh / peak_abs;
-    denominator = 1.0 - fudge*(thresh_over_peak)*sqrt(2.93*log(peak_over_thresh));  /* Chris Simpson calc */
-
-    fwhmx2 = sqrt( pow(object->fwhmx,2)/denominator);
-    fwhmy2 = sqrt( pow(object->fwhmy,2)/denominator);
+    fprintf(stdout,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n",
+            object->objnum,
+            object->xpos,object->ypos,
+            object->fwhmx,                                                 /* fwhmx = fwhmy = fwhm */
+            object->moffat_k,object->moffat_a,object->moffat_b,
+            object->total,
+            object->numpix,
+            peak_abs);
     
-    fprintf(stdout,"%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\n",
-	    object->objnum,
-	    object->xpos,object->ypos,
-	    object->fwhmx,object->fwhmy,
-	    fwhmx2,fwhmy2,
-	    object->total,
-	    object->numpix,
-	    peak_abs);
     object = object->nextobject;
   }
 
@@ -676,6 +678,16 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.2  2007/11/23 19:41:56  eng
+** Changes to calculate secondary FWHM based on info from Chris Simpson.
+** These extra fwhm values (fwhmx2, fwhmy2) plus the peak pixel value with
+** median added back to give an absolute value (peak_abs), are now output
+** too.
+**
+** Information for L1SEEING testing purposes: the extra columns are ignored
+** by L1psf2 which just looks at the first few columns for object coordinates.
+** PrintL1psf2 is the script that handles these extra columns.
+**
 ** Revision 1.1  2007/09/18 17:20:37  jmm
 ** Initial revision
 **

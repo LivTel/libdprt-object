@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.6 2008-02-05 18:11:10 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.7 2008-02-05 18:30:18 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,17 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.6 $
+ * @version $Revision: 1.7 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.6  2008/02/05 18:11:10  eng
+  Slight tweak to write moffat curve fitting parameters into new w_object variables
+  in Object_Calculate_FWHM.
+
   Revision 1.5  2008/01/09 14:15:32  eng
   Implementation in Object_Calculate_FWHM() of a brute force method of fitting a Moffat curve to the radial
   profile of each object. Manual testing on a few test objects shows it fits well to the data and produces
@@ -152,7 +156,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.6 2008-02-05 18:11:10 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.7 2008-02-05 18:30:18 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -1609,6 +1613,10 @@ int sign(double x){
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.6  2008/02/05 18:11:10  eng
+** Slight tweak to write moffat curve fitting parameters into new w_object variables
+** in Object_Calculate_FWHM.
+**
 ** Revision 1.5  2008/01/09 14:15:32  eng
 ** Implementation in Object_Calculate_FWHM() of a brute force method of fitting a Moffat curve to the radial
 ** profile of each object. Manual testing on a few test objects shows it fits well to the data and produces

@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.5 2008-01-09 14:15:32 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.6 2008-02-05 18:11:10 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,29 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.5 $
+ * @version $Revision: 1.6 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.5  2008/01/09 14:15:32  eng
+  Implementation in Object_Calculate_FWHM() of a brute force method of fitting a Moffat curve to the radial
+  profile of each object. Manual testing on a few test objects shows it fits well to the data and produces
+  a FWHM within 0.2 pixels (0.05") of that calculated by IRAF.
+
+  __Radial profile__ entails converting x,y,z -> r,z where r = sqrt((x-xpos)^2 + (y-ypos)^2), i.e. based
+  around the barycentre (1st moment). Using a gsl routine for this as it executes a little faster than
+  standard sqrt math lib function and we have a lot of pixels to work on.
+
+  __Moffat curve__ is a better fit to a stellar radial profile than a gaussian, and is given by the equation
+  y = k * [ 1 + (x/a)^2 ]^(-b), where k = peak at x=0 and a,b are parameters to find. 'k' can be set to the
+  nearest (brightest) pixel to the barycentre as it's close enough.
+
+  This version (coded in December 2007) uses a crude scan through a range of a,b values to find the best fit,
+  purely to enable testing on a large number of objects in many frames.
+
   Revision 1.4  2007/11/23 19:44:49  eng
   Thought some tweaks here were necessary to enable testing of Chris Simpson's idea
   of a FWHM workaround, but turns out it could all be done in object_test_jmm.c
@@ -65,6 +81,10 @@
  * This hash define is needed before including source files give us POSIX.4/IEEE1003.1b-1993 prototypes.
  */
 #define _POSIX_C_SOURCE 199309L
+
+
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -125,16 +145,6 @@ struct Log_Struct
 };
 
 
-/*
-  for new fwhm
-*/
-struct radpoint
-{
-  float r;
-  float z;
-};
-
-
 
 /* ------------------------------------------------------- */
 /* internal variables */
@@ -142,7 +152,7 @@ struct radpoint
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object_jmm.c,v 1.5 2008-01-09 14:15:32 eng Exp $";
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.6 2008-02-05 18:11:10 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -170,28 +180,38 @@ static char Object_Buff[OBJECT_ERROR_STRING_LENGTH];
 /* ------------------------------------------------------- */
 static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_median,int x,int y,float thresh,
 					    float *image,Object *w_object);
-static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm);
+static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stellar,float *fwhm);
 static void Object_Free(Object **w_object);
 static int Point_List_Remove_Head(struct Point_Struct **point_list,int *point_count);
 static int Point_List_Add(struct Point_Struct **point_list,int *point_count,struct Point_Struct **last_point,
 			  int x,int y);
-static int Sort_Float(const void *data1,const void *data2);
+
 
 /* ------------------------------------------------------- */
 /* external functions */
 /* ------------------------------------------------------- */
+static int Sort_Float(const void *data1,const void *data2);
+double moffat(double x, double k, double a, double b);
+double delta(const double *x, const double *y, const int items, const double parameters[]);
+int sign(double x);
+double findMax(const double *a, const int items);
+double optimize(const double *x, const double *y, int items, double params[]);
+#define MAX_ITERS 2000
+#define EARLY_STOP 4.5
+#define EPS 10e-10
+
+
+
+
 
 /*
-  for new fwhm
+  ---------------------------------------------------------------------
+  ___   _      _           _       _     _      _       ___       _   
+ / _ \ | |__  (_) ___  __ | |_    | |   (_) ___| |_    / __| ___ | |_ 
+| (_) || '_ \ | |/ -_)/ _||  _|   | |__ | |(_-<|  _|  | (_ |/ -_)|  _|
+ \___/ |_.__/_/ |\___|\__| \__|___|____||_|/__/ \__|___\___|\___| \__|
+            |__/              |___|                |___|              
 */
-int fltcmp(const void *v1, const void *v2){
-  return (*(int *)v1 - *(int *)v2);
-}
-float moffat(float x, float Io, float a, float b){
-  float Ix;
-  Ix = Io * pow((((x/a)*(x/a)) + 1.0),-b);
-  return Ix;
-}
 
 /**
  * Routine to get a list of objects on the image.
@@ -461,7 +481,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
 			w_object->xpos,w_object->ypos);
 #endif
-      Object_Calculate_FWHM(w_object,&is_stellar,&fwhm);
+      Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:"
 			"object at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
@@ -531,6 +551,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   return TRUE;
 }
 
+
+
 /**
  * Routine to free the list allocated in Object_List_Get.
  * @param list The address of a pointer to the first element in the list.
@@ -554,6 +576,9 @@ int Object_List_Free(Object **list)
   return TRUE;
 }
 
+
+
+
 /**
  * The error routine that reports any errors occuring in object in a standard way.
  * @see object.html#Object_Get_Current_Time_String
@@ -570,6 +595,8 @@ void Object_Error(void)
     sprintf(Object_Error_String,"Logic Error:No Error defined");
   fprintf(stderr,"%s Object:Error(%d) : %s\n",time_string,Object_Error_Number,Object_Error_String);
 }
+
+
 
 /**
  * The error routine that reports any errors occuring in object in a standard way. This routine places the
@@ -593,6 +620,9 @@ void Object_Error_To_String(char *error_string)
 	  Object_Error_Number,Object_Error_String);
 }
 
+
+
+
 /**
  * Routine to return the object error number.
  * @return The object error number.
@@ -602,6 +632,7 @@ int Object_Get_Error_Number(void)
 {
   return Object_Error_Number;
 }
+
 
 /**
  * The warning routine that reports any warnings occuring in object in a standard way.
@@ -619,6 +650,8 @@ void Object_Warning(void)
     sprintf(Object_Error_String,"Logic Error:No Warning defined");
   fprintf(stderr,"%s Object:Warning(%d) : %s\n",time_string,Object_Error_Number,Object_Error_String);
 }
+
+
 
 /**
  * Routine to get the current time in a string. The string is returned in the format
@@ -640,6 +673,7 @@ void Object_Get_Current_Time_String(char *time_string,int string_length)
   else
     strncpy(time_string,"Unknown time",string_length);
 }
+
 
 /**
  * Routine to log a message to a defined logging mechanism. This routine has an arbitary number of arguments,
@@ -679,6 +713,9 @@ void Object_Log_Format(int level,char *format,...)
   Object_Log(level,Object_Buff);
 }
 
+
+
+
 /**
  * Routine to log a message to a defined logging mechanism. If the string or Log_Data.Log_Handler are NULL
  * the routine does not log the message. If the Log_Data.Log_Filter function pointer is non-NULL, the
@@ -706,6 +743,8 @@ void Object_Log(int level,char *string)
   (*Log_Data.Log_Handler)(level,string);
 }
 
+
+
 /**
  * Routine to set the Log_Data.Log_Handler used by Object_Log.
  * @param log_fn A function pointer to a suitable handler.
@@ -717,6 +756,8 @@ void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string))
   Log_Data.Log_Handler = log_fn;
 }
 
+
+
 /**
  * Routine to set the Log_Data.Log_Filter used by Object_Log.
  * @param log_fn A function pointer to a suitable filter function.
@@ -727,6 +768,7 @@ void Object_Set_Log_Filter_Function(int (*filter_fn)(int level))
 {
   Log_Data.Log_Filter = filter_fn;
 }
+
 
 /**
  * A log handler to be used for the Log_Handler function.
@@ -1066,6 +1108,19 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
 
 
 
+/*
+---------------------------------------------------------------------
+  ___   _      _           _       ___        _            _        _        
+ / _ \ | |__  (_) ___  __ | |_    / __| __ _ | | __  _  _ | | __ _ | |_  ___ 
+| (_) || '_ \ | |/ -_)/ _||  _|  | (__ / _` || |/ _|| || || |/ _` ||  _|/ -_)
+ \___/ |_.__/_/ |\___|\__| \__|___\___|\__,_||_|\__| \_,_||_|\__,_| \__|\___|
+            |__/              |___|                                          
+     ___ __      __ _  _  __  __ 
+    | __|\ \    / /| || ||  \/  |
+    | _|  \ \/\/ / | __ || |\/| |
+ ___|_|    \_/\_/  |_||_||_|  |_|
+|___|                            
+*/
 
 /**
  * Routine to calculate the FWHM of the specified object.
@@ -1074,7 +1129,7 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
  *        will be TRUE if stellar, FALSE if non-stellar.
  * @param fwhm An address to store the calculated full width half maximum, in pixels.
  */
-static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
+static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stellar,float *fwhm)
 {
   /* first and second order moments of the ellipse data */
   float x2nd=0,y2nd=0,xy2nd=0;
@@ -1095,36 +1150,25 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   /* pixel pointer */
   HighPixel *curpix;
 
-  /* printf("- Object %d:\n",w_object->objnum); */
-  
+
+  /* Moffat curve fitting optimisation */
+  /* --------------------------------- */
+  double *pixr, *pixz;                 /* optimisation r,z arrays */
+  int ipix;                            /* pixel counter */
+  double dx,dy;                        /* pixel offset from 1st moment */
+  double params[3];                    /* Moffat curve parameters (k,a,b) */
+  int m;                               /* optimisation infinite counter */  
+  double k,a,b;                        /* Moffat curve parameters (k,a,b) */
+  double FWHM;                         /* FWHM */
 
 
-  /* NEW FWHM */
-  struct radpoint *p = NULL;
-  int pixnum;
-  float delta_x,delta_y;
-  float LSQ = FLT_MAX - 1;
-  float peak;
-  float ma,mb;
-  float sum_of_squares;
-  int nn;
-  float y_data,y_moffat;
-  float dy2;
-  float min_a,min_b;
-  float step_a,step_b;
-  float fw;
-  
-
-
-  /* printf("-- 2nd moment\n"); */
 
   /*
-     ___         _                           _   
-    |_  )_ _  __| |  _ __  ___ _ __  ___ _ _| |_ 
-     / /| ' \/ _` | | '  \/ _ \ '  \/ -_) ' \  _|
-    /___|_||_\__,_| |_|_|_\___/_|_|_\___|_||_\__|
-                                             
+    ----------
+    2ND MOMENT
+    ----------
   */
+
   /* calculate the 2nd moments of the ellipse in x y and xy  */
   /* uses equations from SEXtractor manual and PISA manual -
      SUN109.1 */
@@ -1133,10 +1177,6 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   curpix = w_object->highpixel;
   while(curpix !=NULL)
     {
-      /* diddly this was:
-      ** intensity=(curpix->value)-(fitsimage->median);
-      ** However, Object_List_Get_Connected_Pixels already subtracts the median. 
-      ** See below, however, for futher potential screw-up. */
       intensity=(curpix->value);
       xoff=(w_object->xpos)-(curpix->x);
       yoff=(w_object->ypos)-(curpix->y);
@@ -1163,147 +1203,130 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
   diff=major-minor;
   if (diff<=major*0.3)
     {
-      /* object is stellar; */
-      (*is_stellar) = TRUE;
+      (*is_stellar) = TRUE;            /* object is STELLAR */
       w_object->is_stellar = TRUE;
-    }/* endif */
+    }
   else
     {
-      (*is_stellar) = FALSE;
+      (*is_stellar) = FALSE;           /* object is NONSTELLAR */
       w_object->is_stellar = FALSE;
     }
 
 
-
-  /* printf("-- fwhm\n"); */
-  
   /*
-      __        _          
-     / _|_ __ _| |_  _ __  
-    |  _\ V  V / ' \| '  \ 
-    |_|  \_/\_/|_||_|_|_|_|
-    
-    for stellar objects only?
-	  
+    ---------------
+    FWHM CONDITIONS
+    ---------------
   */
 
-
+  /*
+    -----------
+    non-stellar
+    -----------
+  */
+  
   if (w_object->is_stellar == FALSE){
-    /* printf("--- object %d is nonstellar; assigning dummy FWHM.\n",w_object->objnum); */
     w_object->fwhmx = 999.0;
     w_object->fwhmy = 999.0;
     (*fwhm) = 999.0;
   }
+
+  /*
+    ---------
+    too faint
+    ---------
+  */
+/*   else if ((w_object->peak/BGmedian) < 10.0){ */
+/*     w_object->fwhmx = 999.0; */
+/*     w_object->fwhmy = 999.0; */
+/*     (*fwhm) = 999.0;     */
+/*   } */
+
+
+  /*
+    ------------------------
+    FWHM IF BRIGHT & STELLAR
+    ------------------------
+  */
   else {
 
+
     /*
-      ----------
-      INITIALISE
-      ----------
+      ------------------------------
+      create optimisation r,z arrays
+      ------------------------------
     */
-    /* printf("-- initialise\n"); */
+    pixr = (double *)malloc(sizeof(double) * w_object->numpix);
+    pixz = (double *)malloc(sizeof(double) * w_object->numpix);
+
+
+    /*
+      ---------------------------------------------
+      create radial profile of object in r,z arrays
+      ---------------------------------------------
+    */
+    ipix = 0;
     curpix = w_object->highpixel;
-    p = (struct radpoint*) malloc(w_object->numpix*sizeof(struct radpoint));
-    if (p == NULL){
-      printf("p is NULL!\n");
-      exit(100);
-    }
-
-
-    /*
-      ---------------------------------------------------
-      CREATE RADIAL PROFILE OF OBJECT IN ARRAY OF STRUCTS
-      ---------------------------------------------------
-    */
-    /* printf("-- make radial profile\n"); */
-    pixnum = 0;
     while(curpix !=NULL){
+      dx = curpix->x - w_object->xpos;
+      dy = curpix->y - w_object->ypos;
+      pixr[ipix] = sqrt( dx*dx + dy*dy );
+      pixz[ipix] = curpix->value;
 
-      delta_x = curpix->x - w_object->xpos;
-      delta_y = curpix->y - w_object->ypos;
-      p[pixnum].r = (float) sqrt( delta_x*delta_x + delta_y*delta_y );
-      p[pixnum].z = curpix->value;
-      /*printf("--- [%d,%d]\t%d-%.2f=%.2f\t%d-%.2f=%.2f\t%.2f\t\t%.2f\n", \
-	     w_object->objnum,pixnum,\
-	     curpix->x,w_object->xpos,delta_x,\
-	     curpix->y,w_object->ypos,delta_y,\
-	     p[pixnum].r,p[pixnum].z);*/
-      pixnum++;
+/*       fprintf(stdout,"%d:%d\t%f,%f,%f\t%f,%f\n", */
+/* 	     w_object->objnum,ipix, */
+/* 	     dx,dy,curpix->value, */
+/* 	     pixr[ipix],pixz[ipix]); */
+
+      ipix++;
       curpix=curpix->next_pixel;
     }
+
+
+    /*
+      --------------------------------
+      first guess at Moffat parameters
+      --------------------------------
+    */
+    params[0] = findMax(pixz, w_object->numpix);
+    params[1] = 4.9;
+    params[2] = 3.0;
+
+
+    /*
+      --------------------------
+      optimise Moffat parameters
+      --------------------------
+    */
+    for(m = 0; m < 1; m++) {
+      optimize(pixr, pixz, w_object->numpix, params);
+    }
+
+
+    /*
+      --------------
+      calculate FWHM
+      --------------
+    */
+    k = params[0]; /* k is z(r=0) */
+    a = params[1];
+    b = params[2];
+    FWHM = 2.0 * a * sqrt( pow(2.0,(1.0/b)) -1.0 );
+
+    w_object->fwhmx = FWHM;
+    w_object->fwhmy = FWHM;
+    (*fwhm) = FWHM;
+
+    w_object->moffat_k = k;    /*     added     */
+    w_object->moffat_a = a;    /*      for      */
+    w_object->moffat_b = b;    /*  diagnostics  */
     
-      
+    if (pixr != NULL)
+      free(pixr);
+    if (pixz != NULL)
+      free(pixz);
 
-
-    /*
-      ---------------------
-      SORT ARRAY OF STRUCTS
-      ---------------------
-    */
-    /* printf("-- qsort\n"); */
-    qsort (p, w_object->numpix, sizeof (struct radpoint), fltcmp);
-
-
-    /*
-      ----------------------------------------
-      LOOP THROUGH MOFFAT PARAMS - BRUTE FORCE
-      ----------------------------------------
-    */
-  
-    /* printf("-- moffat loop\n"); */
-
-    /* approximate peak value to that of closest pixel */
-    peak = p[0].z;
-
-    /* loop moffat a,b */
-    step_a = 0.1;
-    step_b = 0.1;
-    for (ma=0.1;ma<=5.0;ma+=step_a){
-      for (mb=0.1;mb<=5.0;mb+=step_b){
-
-	/* initialise sum of squares for this a,b run */
-	sum_of_squares = 0.0;
-
-	/* run through data points */
-	for (nn=0;nn<w_object->numpix;nn++){	
-	  y_data = p[nn].z;
-	  y_moffat = moffat(p[nn].r, peak, ma, mb);
-	  dy2 = pow((y_data - y_moffat),2);
-	  sum_of_squares += dy2;
-	}
-      
-	/* if this sum of squares is less than current minimum,
-	   make this the new minimum & remember current values
-	   of ma & mb. */
-      
-	if (sum_of_squares < LSQ){
-	  LSQ = sum_of_squares;
-	  min_a = ma;
-	  min_b = mb;
-	}
-      
-      } /* next mb */
-    } /* next ma */
-
-  
-    /* printf("-- calc FWHM\n"); */
-    /* Calculate FWHM from ma, mb */
-    fw = 2.0 * min_a * sqrt( pow(2.0,(1.0/min_b)) - 1.0 );
-
-    /* printf("-- write to object struct\n"); */
-    /* Put in object struct requirements */
-    w_object->fwhmx = fw;
-    w_object->fwhmy = fw;
-    (*fwhm) = fw;
-
-
-    /*printf("%d\t%f\t%f\t%f\n",w_object->objnum,min_a,min_b,fw);*/
-
-    /* printf("-- clear struct\n"); */
-    /* Clear struct 'p' memory */
-    if (p != NULL)
-      free(p);
-  } /* end of if stellar flag TRUE */
+  } /* end of FWHM IF STELLAR */
 
 }
 
@@ -1316,16 +1339,292 @@ static void Object_Calculate_FWHM(Object *w_object,int *is_stellar,float *fwhm)
 
 
 
-/**
- * Routine, used in conjunction with qsort, to sort floats (FWHM)s.
- */
+
+
+
+
+
+
+
+
+
+
+
+/*    for(ii = 1; ii < w_object->numpix; ii++) { */
+/*       if(p[ii].z > peak) */
+/* 	peak = p[ii].z; */
+/*     } */
+
+/*     params[0] = peak; */
+/*     params[1] = mf_a_start; */
+/*     params[2] = mf_b_start; */
+    
+
+
+/*     /\* OPTIMIZE *\/ */
+/*     for (i=0; i<=2000; i++){ */
+/*       sm = 0.0;                         /\* sum of slopes *\/ */
+/*       params2[0] = params[0];           /\* initialise 2nd parameter array *\/ */
+/*       params2[1] = params[1]; */
+/*       params2[2] = params[2]; */
+/*       d1 = delta(p, w_object->numpix, params);    /\* calc goodness of fit (delta) for initial params *\/ */
+ 
+/*       for(j = 1; j <= 2; j++) {                     /\* for parameters a and b (not Io) *\/ */
+/* 	tmp = params[j];                            /\* current parameter value *\/ */
+/* 	params2[j] = params[j] + EPS;               /\* increment new parameter by EPS *\/ */
+/* 	d2 = delta(p, w_object->numpix, params2);   /\* calc new goodness of fit (delta) *\/ */
+/* 	m = (d2 - d1) / EPS;                        /\* calc slope in delta space *\/ */
+/* 	sm += (1 + m) * (1 + m);                    /\* add to sum of slopes *\/ */
+	
+/* 	/\* This is stolen from iRprop. *\/ */
+/* 	if(momentum[j] * m > 0) {         /\* momentum & slope same signs? *\/ */
+/* 	  momentum[j] *= 1.1;             /\* accelerate forwards *\/ */
+/* 	} else { */
+/* 	  momentum[j] *= -0.9091;         /\* slow down & backwards *\/ */
+/* 	} */
+/* 	/\* Threshold the momentum before applying *\/ */
+/* 	momentum[j] = sign(momentum[j]) * MIN(fabs(momentum[j]),0.2); */
+
+/* 	params[j] = params2[j] - momentum[j];  /\* change original parameter *\/ */
+/* 	params2[j] = tmp;                      /\* new parameter becomes old one *\/ */
+
+
+/* 	/\* STOPPING CONDITIONS *\/ */
+	
+/* 	/\* -- by delta *\/ */
+
+/* 	if (d2 < minDelta) {              /\* if difference small enough *\/ */
+/* 	  printf("minDelta stop at iteration %d\n", i); */
+/* 	  minDelta = d2;                  /\* note values & carry on a bit.... *\/ */
+/* 	  best[0] = params2[0]; */
+/* 	  best[1] = params2[1]; */
+/* 	  best[2] = params2[2]; */
+/* 	  bestIter = i; */
+/* 	} else { */
+/* 	  if(i - bestIter > 20)           /\* ... but eventually stop after   *\/ */
+/* 	    break;                        /\* 20 more goes if no new bestIter *\/ */
+/* 	} */
+	
+	
+/* 	/\* -- by slope *\/ */
+/* 	if(sm < earlystop) { */
+/* 	  printf("Early Stop at iteration %d\n", i); */
+/* 	  break; */
+/* 	} */
+
+/*       } /\* end of parameter loop *\/ */
+      
+/*       /\* Write final parameters to params array *\/ */
+/*       params[0] = best[0]; */
+/*       params[1] = best[1]; */
+/*       params[2] = best[2]; */
+
+/*     } */
+
+/*     /\* printf("-- Optimized moffat parameters for object %d: Io = %f\ta = %f\tb = %f\n", */
+/*        w_object->objnum,params[0], params[1], params[2]); *\/ */
+
+/*     moffat_a = params[1]; */
+/*     moffat_b = params[2]; */
+
+
+/*     /\*  */
+/*        -------------- */
+/*        CALCULATE FWHM   */
+/*        -------------- */
+/*     *\/ */
+  
+/*     /\* printf("-- calc FWHM\n"); *\/ */
+/*     /\* Calculate FWHM from ma, mb *\/ */
+/*     fw = 2.0 * moffat_a * sqrt( pow(2.0,(1.0/moffat_b)) - 1.0 ); */
+
+/*     /\* printf("-- write to object struct\n"); *\/ */
+/*     /\* Put in object struct requirements *\/ */
+/*     w_object->fwhmx = fw; */
+/*     w_object->fwhmy = fw; */
+/*     (*fwhm) = fw; */
+
+
+/*     /\*printf("%d\t%f\t%f\t%f\n",w_object->objnum,min_a,min_b,fw);*\/ */
+
+/*     /\* printf("-- clear struct\n"); *\/ */
+/*     /\* Clear struct 'p' memory *\/ */
+/*     if (p != NULL) */
+/*       free(p); */
+/*   } /\* end of if stellar flag TRUE *\/ */
+
+/* } */
+
+
+/* Sort_Float */
 static int Sort_Float(const void *data1,const void *data2)
 {
   return *((float *) data1) < * ((float *) data2);
 }
 
+/* ---------------------------------------------------------------------
+            __  __      _   
+ _ __  ___ / _|/ _|__ _| |_ 
+| '  \/ _ \  _|  _/ _` |  _|
+|_|_|_\___/_| |_| \__,_|\__|
+                            
+y = k(1+(x/a)^2)^(-b)
+
+*/
+
+double moffat(double x, double k, double a, double b) {
+  return k * pow(1.0 + pow(x / a, 2.0), -b);
+}
+
+
+/* ---------------------------------------------------------------------
+    _     _ _        
+ __| |___| | |_ __ _ 
+/ _` / -_) |  _/ _` |
+\__,_\___|_|\__\__,_|
+                     
+*/
+double delta(const double *x, const double *y, const int items, const double parameters[]) {
+  double sum = 0.0;
+  int i;
+  for(i = 0; i < items; i++) {
+    sum += pow(y[i] - moffat(x[i], parameters[0], parameters[1], parameters[2]), 2.0);
+  }
+  return sqrt(sum);
+}
+
+
+/* ---------------------------------------------------------------------
+  __ _         _ __  __          
+ / _(_)_ _  __| |  \/  |__ ___ __
+|  _| | ' \/ _` | |\/| / _` \ \ /
+|_| |_|_||_\__,_|_|  |_\__,_/_\_\
+                                 
+*/
+double findMax(const double *a, const int items) {
+  double m = a[0];
+  int i;
+  for(i = 1; i < items; i++) {
+    if(a[i] > m) {
+      m = a[i];
+    }
+  }
+  return m;
+}
+
+
+/* ---------------------------------------------------------------------
+          _   _       _         
+ ___ _ __| |_(_)_ __ (_)___ ___ 
+/ _ \ '_ \  _| | '  \| (_-</ -_)
+\___/ .__/\__|_|_|_|_|_/__/\___|
+    |_|                         
+*/
+
+/*                          pixr             pixz     numpix        params */
+double optimize(const double *x, const double *y, int items, double params[]) {
+  double p[3];
+  double p2[3];
+  double momentum[3] = {0.01, 0.1, 0.1};
+  double minDelta = 10e10;
+  double best[3];
+  int bestIter = 0;
+  int i,j;
+
+  
+  p[0] = findMax(y, items);
+  p[1] = 5.0;
+  p[2] = 3.0;
+
+
+  for(i = 0; i < MAX_ITERS; i++) {                 /* MAX_ITERS here */
+    double d1, d2, m;
+    double sm = 0.0;                          /* sum of slopes */
+    p2[0] = p[0];
+    p2[1] = p[1];
+    p2[2] = p[2];
+    d1 = delta(x, y, items, p);
+
+    for(j = 0; j < 3; j++) {                  /* optimising all 3 parameters */
+      double tmp = p[j];
+      p2[j] = p[j] + EPS;
+      d2 = delta(x, y, items, p2);
+      m = (d2 - d1) / EPS;
+      sm += (1 + m) * (1 + m);
+                                              /* This is stolen from iRprop */
+      if(momentum[j] * m > 0) {               /* momentum & slope same signs? */
+	momentum[j] *= 1.25;                  /* accelerate forwards */
+      } else {
+	momentum[j] *= -0.8;                  /* slow down & backwards */
+      }
+      
+      /* Threshold the momentum before applying */
+      momentum[j] = sign(momentum[j]) * MIN(fabs(momentum[j]),0.2);
+
+      p[j] = p2[j] - momentum[j];
+      p2[j] = tmp;
+
+      /* STOPPING CONDITIONS */
+
+      /* by delta */
+      if(d2 < minDelta) {
+	minDelta = d2;
+	best[0] = p2[0];
+	best[1] = p2[1];
+	best[2] = p2[2];
+	bestIter = i;
+      } else {
+	if(i - bestIter > 20) {
+	  break;
+	}
+      }
+    }
+
+    /* by slope */
+    if(sm < EARLY_STOP) {
+      break;
+    }
+  }
+  
+  for(i = 0; i < 3; i++) {
+    params[i] = best[i];
+  }
+  
+
+  return delta(x, y, items, params);
+}
+
+
+/* SIGN */
+int sign(double x){
+  if ( x == 0.0 )
+    return 0;
+  else
+    return (int) (x/fabs(x)); 
+}
+
+
+
+
+
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.5  2008/01/09 14:15:32  eng
+** Implementation in Object_Calculate_FWHM() of a brute force method of fitting a Moffat curve to the radial
+** profile of each object. Manual testing on a few test objects shows it fits well to the data and produces
+** a FWHM within 0.2 pixels (0.05") of that calculated by IRAF.
+**
+** __Radial profile__ entails converting x,y,z -> r,z where r = sqrt((x-xpos)^2 + (y-ypos)^2), i.e. based
+** around the barycentre (1st moment). Using a gsl routine for this as it executes a little faster than
+** standard sqrt math lib function and we have a lot of pixels to work on.
+**
+** __Moffat curve__ is a better fit to a stellar radial profile than a gaussian, and is given by the equation
+** y = k * [ 1 + (x/a)^2 ]^(-b), where k = peak at x=0 and a,b are parameters to find. 'k' can be set to the
+** nearest (brightest) pixel to the barycentre as it's close enough.
+**
+** This version (coded in December 2007) uses a crude scan through a range of a,b values to find the best fit,
+** purely to enable testing on a large number of objects in many frames.
+**
 ** Revision 1.4  2007/11/23 19:44:49  eng
 ** Thought some tweaks here were necessary to enable testing of Chris Simpson's idea
 ** of a FWHM workaround, but turns out it could all be done in object_test_jmm.c

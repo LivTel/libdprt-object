@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.7 2008-02-05 18:30:18 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.8 2008-03-06 12:23:06 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.7 $
+ * @version $Revision: 1.8 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.7  2008/02/05 18:30:18  eng
+  This version (1.6) uses a Gradient Descent (GD) routine in optimise() to curve fit. Should be faster and more accurate - testing will show. Current implementation using default settings. Also added a few lines in Object_Calculate_FWHM to write best fit parameters to new variables in w_object, for diagnostic purposes.
+
   Revision 1.6  2008/02/05 18:11:10  eng
   Slight tweak to write moffat curve fitting parameters into new w_object variables
   in Object_Calculate_FWHM.
@@ -111,7 +114,9 @@
  * Should be larger than 10 pixels, so RCS thinks seeing is "bad".
  * RJS wants really large value so archive searches can differentiate between real bad seeing and failed reductions.
  */
+#define MAX_N_MEDIAN_FWHM     (12)
 #define DEFAULT_BAD_SEEING    (999.0)
+#define DEFAULT_NONSTELLAR    (999.0)
 
 /* ------------------------------------------------------- */
 /* structure declarations */
@@ -156,7 +161,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.7 2008-02-05 18:30:18 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.8 2008-03-06 12:23:06 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -350,107 +355,141 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       Object_Warning();
       /* We used to return FALSE (error) here.
       ** But there are cases where it is OK to have no objects - e.g. Moon images.
-      ** We want  a fake seeing to be written to the FITS headers,
+      ** We want a fake seeing to be written to the FITS headers,
       ** So we generate a warning message and return TRUE.
       ** Note this means any program using Object_List_Get must be able to cope with
       ** a NULL object list.
       */
       return TRUE;
     }
-  /* go through list of objects, get rid of any with less than npix */
-  /* diddly why got get rid of any with lots of pixels i.e. non-stellar stuff? */
-  /* find new first_object with numpix > npix */
-#if LOGGING > 0
+
+
+  /* ---------------------------------- */
+  /* REMOVE TOO-SMALL OBJECTS           */
+  /*                                    */
+  /* go through list of objects,        */
+  /* get rid of any with less than npix */
+  /* ---------------------------------- */
+
+
+#if LOGGING > 0 
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding useful objects.");
 #endif
+
+
+
+  /* if first object too small, delete it */
+  /* ------------------------------------ */
+
   w_object = (*first_object);
   count = 0;
   done = FALSE;
-  while(done == FALSE)
-    {
-      if(w_object->numpix >= npix)
-	done = TRUE;
-      else
-	{
+  while(done == FALSE){
+    if(w_object->numpix >= npix)             /* if object bigger than limit */
+      done = TRUE;                           /* we're done */
+    else {                                   /* otherwise */
+
+
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(1) at %.2f,%.2f(%d).",
-			    w_object->xpos,w_object->ypos,w_object->numpix);
-#endif
-	  /* take copy of next object pointer */
-	  next_object = w_object->nextobject;
-	  /* delete w_object */
-	  Object_Free(&w_object);
-	  /* set w_object to next object */
-	  w_object = next_object;
-	  /* if we've reached the end of the list, bail out */
-	  if(w_object == NULL)
-	    done = TRUE;
-	}
+      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(1) at %.2f,%.2f(%d).",
+			w_object->xpos,w_object->ypos,w_object->numpix);
+#endif 
+
+
+      next_object = w_object->nextobject;    /* take copy of next object pointer */
+      Object_Free(&w_object);                /* delete w_object */
+      w_object = next_object;                /* set w_object to next object */
+      if(w_object == NULL)                   /* if we've reached the end of the list, bail out */
+	done = TRUE;
     }
+  }
+  
   if(w_object == NULL)
     {
       (*seeing) = DEFAULT_BAD_SEEING;
-      (*sflag) = 1; /* the seeing was fudged. */
+      (*sflag) = 1;                       /* the seeing was fudged. */
       (*first_object) = NULL;
       Object_Error_Number = 7;
       sprintf(Object_Error_String,"Object_List_Get:All objects were too small.");
       Object_Warning();
-      /* We used to return FALSE (error) here.
-      ** But it is OK to have all objects too small.
-      ** We want  a fake seeing to be written to the FITS headers,
-      ** So we generate a warning message and return TRUE.
-      ** Note this means any program using Object_List_Get must be able to cope with
-      ** a NULL object list.
-      */
+                                           /* We used to return FALSE (error) here.
+					   ** But it is OK to have all objects too small.
+					   ** We want  a fake seeing to be written to the FITS headers,
+					   ** So we generate a warning message and return TRUE.
+					   ** Note this means any program using Object_List_Get must be able to cope with
+					   ** a NULL object list.
+					   */
       return TRUE;
     }
+
+
   /* set new first object */
+  /* -------------------- */
+
 #if LOGGING > 10
   Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:first_object (%p) set from w_object (%p).",
 		    (*first_object),w_object);
 #endif
+
+
   (*first_object) = w_object;
   w_object->objnum=1;
   last_object = (*first_object);
+
+
 #if LOGGING > 5
   Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(1).",
 		    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
   w_object = (*first_object)->nextobject;
   count = 1;
   done = FALSE;
+
+
   /* go through rest of object list, deleting objects with numpix < npix */
+  /* ------------------------------------------------------------------- */
+
   while(w_object != NULL)
     {
-      /* take copy of next object to go to */
-      next_object=w_object->nextobject;
+      next_object=w_object->nextobject;         /* take copy of next object to go to */
       if(w_object->numpix < npix)
 	{
+
+
 #if LOGGING > 5
 	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(2) at %.2f,%.2f(%d).",
 			    w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
 	  Object_Free(&w_object);
 	}
       else
 	{
 	  count++;
-	  /* tell last object this is it's next object */
-	  last_object->nextobject=w_object;
-	  /* set objects number */
-	  w_object->objnum=count;
-	  /* set the last object in the list to be this object */
-	  last_object = w_object;
+	  last_object->nextobject=w_object;     /* tell last object this is its next object */
+	  w_object->objnum=count;               /* set objects number */
+	  last_object = w_object;               /* set the last object in the list to be this object */
+
+
 #if LOGGING > 5
 	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(2).",
 			    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
 	}
-      /* change to next object */
-      w_object = next_object;
+      w_object = next_object;                   /* change to next object */
     }
   last_object->nextobject=NULL;
+
+
+
+
   /* extra debug - list connected pixels in all objects */
+  /* -------------------------------------------------- */
 #if LOGGING > 5
   w_object = (*first_object);
   while(w_object != NULL)
@@ -462,35 +501,58 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       {
 	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels:object:%d pixel %d,%d value %.2f.",
 		      w_object->objnum,curpix->x,curpix->y,curpix->value);
-	/* goto next pixel */
-	 curpix = curpix->next_pixel;
+	 curpix = curpix->next_pixel;           /* goto next pixel */
       }
-    /* goto next object */
-      w_object = w_object->nextobject;		
+      w_object = w_object->nextobject;	        /* goto next object */	
   }
 #endif
 
-  /* find fwhm */
+
+
+
+  /* --------------------------- */
+  /* CREATE LIST OF OBJECT FWHMS */
+  /* --------------------------- */
+  
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding FWHM of objects.");
 #endif
+
+
+  /* set first object */
+  /* ---------------- */  
   w_object = (*first_object);
+
 #if LOGGING > 10
   Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:w_object (%p) set from first_object (%p).",
 		    w_object,(*first_object));
 #endif
+
+
+  /* run through list of objects */
+  /* --------------------------- */
   while(w_object != NULL)
     {
+
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
 			w_object->xpos,w_object->ypos);
 #endif
+
+
+      /* calculate FWHM of object */
+      /* ------------------------ */
       Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
+
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:"
 			"object at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
 			w_object->xpos,w_object->ypos,fwhm,is_stellar);
 #endif
+
+
+      /* if object stellar, add its FWHM to list of FWHMs */
+      /* ------------------------------------------------ */
       if(is_stellar)
 	{
 	  if(fwhm_list == NULL)
@@ -511,32 +573,77 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	}
       w_object = w_object->nextobject;		
     }
+
+
+
+
+  /* ----------------------------- */
+  /* CALCULATE FINAL FWHM (MEDIAN) */
+  /* ----------------------------- */
+
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Calculating final seeing.");
 #endif
+
+
+
+
+
+  /* sort through object structs sorting by numpix */
+
+
+
+
+
+
+
+
+
+
+
+
+
   /* diddly In the original code theres a bit here concerned with numobjs
   ** that makes no sense at all to me */
+
+  /* if we have some FWHMs to play with */
+  /* ---------------------------------- */
   if(fwhm_count > 0)
     {
-      qsort(fwhm_list,fwhm_count,sizeof(float),Sort_Float);
-      mid = (fwhm_count-1)/2;
-      (*seeing) = fwhm_list[mid];
-      (*sflag) = 0;
-      /* If the seeing is less than 0.01 set the seeing to DEFAULT_BAD_SEEING (pixels) 
-      ** and sflag to show the seeing was fudged */
+      qsort(fwhm_list,fwhm_count,sizeof(float),Sort_Float);               /* sort the list */
+      mid = (fwhm_count-1)/2;                                             /* calculate median position */
+      (*seeing) = fwhm_list[mid];                                         /* select median seeing */
+      (*sflag) = 0;                                                       /* set sflag to zero (obviously) */
+      
+      
+      /* If the seeing is less than 0.01 */
       if ((*seeing)<=0.01)
 	{
-	  (*seeing) = DEFAULT_BAD_SEEING;
-	  (*sflag) = 1;
+	  (*seeing) = DEFAULT_BAD_SEEING;                   /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
+	  (*sflag) = 1;                                     /* and set sflag to show the seeing was fudged */
 	}
     }
+
+
+  /* if there are no FWHMs (if list empty) */
+  /* ------------------------------------- */
   else
     {
-      (*seeing) = DEFAULT_BAD_SEEING;
-      (*sflag) = 1; /* the seeing was fudged. */
+      (*seeing) = DEFAULT_BAD_SEEING;                       /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
+      (*sflag) = 1;                                         /* and set sflag to show the seeing was fudged */
     }
+
+
+
+
+  /* ---------------- */
+  /* DELETE FWHM LIST */
+  /* ---------------- */
   if(fwhm_list != NULL)
     free(fwhm_list);
+
+
+
 #if LOGGING > 0
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:number of objects > %d pixels = %d",npix,count);
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:number of objects identified as stellar = %d",
@@ -552,11 +659,29 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 			"faking result = %.2f pixels.",(*seeing));
     }
 #endif
+
+
+
+
   return TRUE;
 }
 
 
 
+
+
+
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _     _      _     ___               
+ / _ \ | |__  (_) ___  __ | |_  | |   (_) ___| |_  | __|_ _  ___  ___ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ | |(_-<|  _| | _|| '_|/ -_)/ -_)
+ \___/ |_.__/_/ |\___|\__| \__| |____||_|/__/ \__| |_| |_|  \___|\___|
+            |__/                                                      
+*/
 /**
  * Routine to free the list allocated in Object_List_Get.
  * @param list The address of a pointer to the first element in the list.
@@ -583,6 +708,14 @@ int Object_List_Free(Object **list)
 
 
 
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___                     
+ / _ \ | |__  (_) ___  __ | |_  | __| _ _  _ _  ___  _ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | _| | '_|| '_|/ _ \| '_|
+ \___/ |_.__/_/ |\___|\__| \__| |___||_|  |_|  \___/|_|  
+            |__/                                         
+*/
 /**
  * The error routine that reports any errors occuring in object in a standard way.
  * @see object.html#Object_Get_Current_Time_String
@@ -602,6 +735,21 @@ void Object_Error(void)
 
 
 
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___                       _____     
+ / _ \ | |__  (_) ___  __ | |_  | __| _ _  _ _  ___  _ _  |_   _|___ 
+| (_) || '_ \ | |/ -_)/ _||  _| | _| | '_|| '_|/ _ \| '_|   | | / _ \
+ \___/ |_.__/_/ |\___|\__| \__| |___||_|  |_|  \___/|_|     |_| \___/
+            |__/                                                     
+ ___  _         _             
+/ __|| |_  _ _ (_) _ _   __ _ 
+\__ \|  _|| '_|| || ' \ / _` |
+|___/ \__||_|  |_||_||_|\__, |
+                        |___/ 
+*/
 /**
  * The error routine that reports any errors occuring in object in a standard way. This routine places the
  * generated error string at the end of a passed in string argument.
@@ -627,6 +775,21 @@ void Object_Error_To_String(char *error_string)
 
 
 
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _      ___       _     ___                     
+ / _ \ | |__  (_) ___  __ | |_   / __| ___ | |_  | __| _ _  _ _  ___  _ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | (_ |/ -_)|  _| | _| | '_|| '_|/ _ \| '_|
+ \___/ |_.__/_/ |\___|\__| \__|  \___|\___| \__| |___||_|  |_|  \___/|_|  
+            |__/                                                          
+ _  _               _              
+| \| | _  _  _ __  | |__  ___  _ _ 
+| .` || || || '  \ | '_ \/ -_)| '_|
+|_|\_| \_,_||_|_|_||_.__/\___||_|  
+                                   
+*/
 /**
  * Routine to return the object error number.
  * @return The object error number.
@@ -638,6 +801,17 @@ int Object_Get_Error_Number(void)
 }
 
 
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _    __      __                 _             
+ / _ \ | |__  (_) ___  __ | |_  \ \    / /__ _  _ _  _ _  (_) _ _   __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _|  \ \/\/ // _` || '_|| ' \ | || ' \ / _` |
+ \___/ |_.__/_/ |\___|\__| \__|   \_/\_/ \__,_||_|  |_||_||_||_||_|\__, |
+            |__/                                                   |___/ 
+*/
 /**
  * The warning routine that reports any warnings occuring in object in a standard way.
  * @see object.html#Object_Get_Current_Time_String
@@ -657,6 +831,25 @@ void Object_Warning(void)
 
 
 
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _      ___       _   
+ / _ \ | |__  (_) ___  __ | |_   / __| ___ | |_ 
+| (_) || '_ \ | |/ -_)/ _||  _| | (_ |/ -_)|  _|
+ \___/ |_.__/_/ |\___|\__| \__|  \___|\___| \__|
+            |__/                                
+  ___                           _     _____  _             
+ / __|_  _  _ _  _ _  ___  _ _ | |_  |_   _|(_) _ __   ___ 
+| (__| || || '_|| '_|/ -_)| ' \|  _|   | |  | || '  \ / -_)
+ \___|\_,_||_|  |_|  \___||_||_|\__|   |_|  |_||_|_|_|\___|
+                                                           
+ ___  _         _             
+/ __|| |_  _ _ (_) _ _   __ _ 
+\__ \|  _|| '_|| || ' \ / _` |
+|___/ \__||_|  |_||_||_|\__, |
+                        |___/ 
+*/
 /**
  * Routine to get the current time in a string. The string is returned in the format
  * '01/01/2000 13:59:59', or the string "Unknown time" if the routine failed.
@@ -679,6 +872,20 @@ void Object_Get_Current_Time_String(char *time_string,int string_length)
 }
 
 
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _               
+ / _ \ | |__  (_) ___  __ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |____|\___/\__, |
+            |__/                           |___/ 
+ ___                        _   
+| __|___  _ _  _ __   __ _ | |_ 
+| _|/ _ \| '_|| '  \ / _` ||  _|
+|_| \___/|_|  |_|_|_|\__,_| \__|
+                                
+*/
 /**
  * Routine to log a message to a defined logging mechanism. This routine has an arbitary number of arguments,
  * and uses vsprintf to format them i.e. like fprintf. The Global_Buff is used to hold the created string,
@@ -720,6 +927,14 @@ void Object_Log_Format(int level,char *format,...)
 
 
 
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _               
+ / _ \ | |__  (_) ___  __ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |____|\___/\__, |
+            |__/                           |___/ 
+*/
 /**
  * Routine to log a message to a defined logging mechanism. If the string or Log_Data.Log_Handler are NULL
  * the routine does not log the message. If the Log_Data.Log_Filter function pointer is non-NULL, the
@@ -749,6 +964,19 @@ void Object_Log(int level,char *string)
 
 
 
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___       _     _               
+ / _ \ | |__  (_) ___  __ | |_  / __| ___ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| \__ \/ -_)|  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |___/\___| \__| |____|\___/\__, |
+            |__/                                           |___/ 
+ _  _                 _  _             ___                 _    _            
+| || | __ _  _ _   __| || | ___  _ _  | __|_  _  _ _   __ | |_ (_) ___  _ _  
+| __ |/ _` || ' \ / _` || |/ -_)| '_| | _|| || || ' \ / _||  _|| |/ _ \| ' \ 
+|_||_|\__,_||_||_|\__,_||_|\___||_|   |_|  \_,_||_||_|\__| \__||_|\___/|_||_|
+                                                                             
+*/
 /**
  * Routine to set the Log_Data.Log_Handler used by Object_Log.
  * @param log_fn A function pointer to a suitable handler.
@@ -762,6 +990,19 @@ void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string))
 
 
 
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___       _     _               
+ / _ \ | |__  (_) ___  __ | |_  / __| ___ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| \__ \/ -_)|  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |___/\___| \__| |____|\___/\__, |
+            |__/                                           |___/ 
+ ___  _  _  _               ___                 _    _            
+| __|(_)| || |_  ___  _ _  | __|_  _  _ _   __ | |_ (_) ___  _ _  
+| _| | || ||  _|/ -_)| '_| | _|| || || ' \ / _||  _|| |/ _ \| ' \ 
+|_|  |_||_| \__|\___||_|   |_|  \_,_||_||_|\__| \__||_|\___/|_||_|
+                                                                  
+*/
 /**
  * Routine to set the Log_Data.Log_Filter used by Object_Log.
  * @param log_fn A function pointer to a suitable filter function.
@@ -773,6 +1014,22 @@ void Object_Set_Log_Filter_Function(int (*filter_fn)(int level))
   Log_Data.Log_Filter = filter_fn;
 }
 
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _               
+ / _ \ | |__  (_) ___  __ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |____|\___/\__, |
+            |__/                           |___/ 
+ _  _                 _  _             ___  _       _             _   
+| || | __ _  _ _   __| || | ___  _ _  / __|| |_  __| | ___  _  _ | |_ 
+| __ |/ _` || ' \ / _` || |/ -_)| '_| \__ \|  _|/ _` |/ _ \| || ||  _|
+|_||_|\__,_||_||_|\__,_||_|\___||_|   |___/ \__|\__,_|\___/ \_,_| \__|
+                                                                      
+*/
 
 /**
  * A log handler to be used for the Log_Handler function.
@@ -791,6 +1048,22 @@ void Object_Log_Handler_Stdout(int level,char *string)
   fprintf(stdout,"%s %s\n",time_string,string);
 }
 
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___       _     _               
+ / _ \ | |__  (_) ___  __ | |_  / __| ___ | |_  | |    ___  __ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| \__ \/ -_)|  _| | |__ / _ \/ _` |
+ \___/ |_.__/_/ |\___|\__| \__| |___/\___| \__| |____|\___/\__, |
+            |__/                                           |___/ 
+ ___  _  _  _               _                    _ 
+| __|(_)| || |_  ___  _ _  | |    ___ __ __ ___ | |
+| _| | || ||  _|/ -_)| '_| | |__ / -_)\ V // -_)| |
+|_|  |_||_| \__|\___||_|   |____|\___| \_/ \___||_|
+                                                   
+*/
+
 /**
  * Routine to set the Log_Data.Log_Filter_Level.
  * @see #Log_Data
@@ -800,6 +1073,23 @@ void Object_Set_Log_Filter_Level(int level)
   Log_Data.Log_Filter_Level = level;
 }
 
+
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _                 ___  _  _  _             
+ / _ \ | |__  (_) ___  __ | |_  | |    ___  __ _  | __|(_)| || |_  ___  _ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ / _ \/ _` | | _| | || ||  _|/ -_)| '_|
+ \___/ |_.__/_/ |\___|\__| \__| |____|\___/\__, | |_|  |_||_| \__|\___||_|  
+            |__/                           |___/                            
+ _                    _     _    _              _        _        
+| |    ___ __ __ ___ | |   /_\  | |__  ___ ___ | | _  _ | |_  ___ 
+| |__ / -_)\ V // -_)| |  / _ \ | '_ \(_-</ _ \| || || ||  _|/ -_)
+|____|\___| \_/ \___||_| /_/ \_\|_.__//__/\___/|_| \_,_| \__|\___|
+
+*/
 /**
  * A log message filter routine, to be used for Log_Data.Log_Filter function pointer.
  * @param level The log level of the message to be tested.
@@ -812,6 +1102,22 @@ int Object_Log_Filter_Level_Absolute(int level)
   return (level <= Log_Data.Log_Filter_Level);
 }
 
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _                 ___  _  _  _             
+ / _ \ | |__  (_) ___  __ | |_  | |    ___  __ _  | __|(_)| || |_  ___  _ _ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ / _ \/ _` | | _| | || ||  _|/ -_)| '_|
+ \___/ |_.__/_/ |\___|\__| \__| |____|\___/\__, | |_|  |_||_| \__|\___||_|  
+            |__/                           |___/                            
+ _                    _   ___  _  _            _          
+| |    ___ __ __ ___ | | | _ )(_)| |_ __ __ __(_) ___ ___ 
+| |__ / -_)\ V // -_)| | | _ \| ||  _|\ V  V /| |(_-</ -_)
+|____|\___| \_/ \___||_| |___/|_| \__| \_/\_/ |_|/__/\___|
+
+*/
 /**
  * A log message filter routine, to be used for the Log_Data.Log_Filter function pointer.
  * @param level The log level of the message to be tested.
@@ -824,9 +1130,26 @@ int Object_Log_Filter_Level_Bitwise(int level)
   return ((level & Log_Data.Log_Filter_Level) > 0);
 }
 
-/* ------------------------------------------------------- */
-/* internal functions */
-/* ------------------------------------------------------- */
+
+
+
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     _     _      _      ___       _   
+ / _ \ | |__  (_) ___  __ | |_  | |   (_) ___| |_   / __| ___ | |_ 
+| (_) || '_ \ | |/ -_)/ _||  _| | |__ | |(_-<|  _| | (_ |/ -_)|  _|
+ \___/ |_.__/_/ |\___|\__| \__| |____||_|/__/ \__|  \___|\___| \__|
+            |__/                                                   
+  ___                            _            _   ___  _            _     
+ / __| ___  _ _   _ _   ___  __ | |_  ___  __| | | _ \(_)__ __ ___ | | ___
+| (__ / _ \| ' \ | ' \ / -_)/ _||  _|/ -_)/ _` | |  _/| |\ \ // -_)| |(_-<
+ \___|\___/|_||_||_||_|\___|\__| \__|\___|\__,_| |_|  |_|/_\_\\___||_|/__/
+                                                                          
+*/
+
 /**
  * Routine to get connected pixels starting at the specified location.
  * @param naxis1 The number of columns in the image.
@@ -839,117 +1162,168 @@ int Object_Log_Filter_Level_Bitwise(int level)
  * @param w_object A pointer to a previously allocated Object, holding all data about it.
  * @return The routine returns TRUE on success and FALSE on failire.
  */
+
+/*
+  Comments added and/or tweaked by JMM 4/3/08
+*/
+
 static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_median,int x,int y,float thresh,
 					    float *image,Object *w_object)
 {
-  int x1,y1,cx,cy;
-  HighPixel *temp_hp=NULL;
+  
+  /* ------------- */
+  /* SET VARIABLES */
+  /* ------------- */
+  int x1,y1,cx,cy;                            /* Don't know what these do */
+  HighPixel *temp_hp = NULL;
   HighPixel *curpix = NULL;
   struct Point_Struct *point_list = NULL;
   struct Point_Struct *last_point = NULL;
   int point_count=0;
 
-  /* add first point to be processed */
+
+  /* ------------------------------- */
+  /* ADD FIRST POINT TO BE PROCESSED */
+  /* ------------------------------- */
+
 #if LOGGING > 9
   Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
 		    "adding point %d,%d to list.",x,y);
 #endif
+
   if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
     return FALSE;
-  /* while there are points to process, process them */
-  while(point_count > 0)
-    {
-      /* start of per pixel stuff */
-      cx = point_list->x;
-      cy = point_list->y;
-      /* check this point hasn't been added to the object since it was added. */
-      if (image[(cy*naxis1)+cx] > thresh)
-	{
+  
+
+  
+
+  /* -------------------------------- */
+  /* RUN THROUGH POINTS ON POINT LIST */
+  /* -------------------------------- */
+  while(point_count > 0){
+    
+
+    /* start of per pixel stuff */
+    /* ------------------------ */
+    cx = point_list->x;
+    cy = point_list->y;
+    
+
+    /* check this point hasn't been added to the object since it was added */
+    /* ------------------------------------------------------------------- */
+    if (image[(cy*naxis1)+cx] > thresh){   /* if pixel above threshold */      
 #if LOGGING > 9
-	  Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
-			    "adding pixel %d,%d to object.",cx,cy);
+      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
+			"adding pixel %d,%d to object.",cx,cy);
 #endif
-	  /* allocate new object pixel */
-	  temp_hp=(HighPixel*)malloc(sizeof(HighPixel));
+
+      /* allocate new object pixel */
+      temp_hp=(HighPixel*)malloc(sizeof(HighPixel));
 #ifdef MEMORYCHECK
-	  if(temp_hp == NULL)
-	    {
-	      Object_Error_Number = 3;
-	      sprintf(Object_Error_String,"Object_List_Get_Connected_Pixels:"
-		      "Failed to allocate temp_hp.");
-	      return FALSE;
-	    }
-#endif
-	  temp_hp->next_pixel=NULL;
-	  if(w_object->highpixel == NULL)
-	    {
-	      w_object->highpixel = temp_hp;
-	      w_object->last_hp = temp_hp;
-	    }
-	  else
-	    {
-	      w_object->last_hp->next_pixel = temp_hp;
-	      w_object->last_hp = temp_hp;
-	    }
-	  /* set currentx, current y from point list element. */
-	  w_object->last_hp->x=cx;
-	  w_object->last_hp->y=cy;
-	  w_object->last_hp->value=image[(cy*naxis1)+cx] - image_median;
-	  /* important for recursion - stops infinite loops. */
-	  image[(cy*naxis1)+cx]=0.0;
-	  /* end of per-pixel stuff*/
-	  /* do some overall w_object stats.
-	  ** Copied from getObjectList, again per pixel stuff. */
-	  curpix = w_object->last_hp;
-	  w_object->total=(w_object->total)+(temp_hp->value);
-	  w_object->xpos=(w_object->xpos)+((temp_hp->x)*(temp_hp->value)); 
-	  w_object->ypos=(w_object->ypos)+((temp_hp->y)*(temp_hp->value));
-	  if ((w_object->peak)<(temp_hp->value))
-	    w_object->peak=(temp_hp->value);  
-	  w_object->numpix ++;
-	  /* start of recursive stuff */
-	  for (x1 = cx-1; x1<=cx+1; x1++)
-	    {
-	      for (y1 = cy-1; y1<=cy+1; y1++)
-		{
-		  if (x1 >= naxis1 || y1 >= naxis2 || x1<0 || y1<0)  
-		    continue; /*set a flag here to say crap object?*/
-		  if (image[(y1*naxis1)+x1] > thresh)
-		    {
-		      /* add this point to be processed */
-#if LOGGING > 9
-		      Object_Log_Format(OBJECT_LOG_BIT_POINT,
-					"Object_List_Get_Connected_Pixels:"
-					"adding point %d,%d to list.",x1,y1);
-#endif
-		      if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
-			return FALSE;
-		    }
-		}/* end for on y1 */
-	    }/* end for on x1 */
-	}
-      else
-	{
-#if LOGGING > 9
-	  Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
-			    "pixel %d,%d already added to object, ignoring.",cx,cy);
-#endif
-	}
-      /* delete processed point */
-#if LOGGING > 9
-      Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
-			"deleting point %d,%d from list.",cx,cy);
-#endif
-      if(!Point_List_Remove_Head(&point_list,&point_count))
+      if(temp_hp == NULL){
+	Object_Error_Number = 3;
+	sprintf(Object_Error_String,"Object_List_Get_Connected_Pixels:"
+		"Failed to allocate temp_hp.");
 	return FALSE;
-    }/* end while on point list */
-  /* calculate mean x and y positions.
-  ** Copied from getObjectList */
+      }
+#endif
+
+
+      /* don't know what this bit does */
+      temp_hp->next_pixel=NULL;
+      if(w_object->highpixel == NULL){
+	w_object->highpixel = temp_hp;
+	w_object->last_hp = temp_hp;
+	}
+      else{
+	w_object->last_hp->next_pixel = temp_hp;
+	w_object->last_hp = temp_hp;
+      }
+
+      
+      /* set currentx, current y from point list element */
+      w_object->last_hp->x=cx;
+      w_object->last_hp->y=cy;
+      w_object->last_hp->value=image[(cy*naxis1)+cx] - image_median;
+       
+
+      /* important for recursion - stops infinite loops */
+      image[(cy*naxis1)+cx]=0.0;
+	
+
+      /* end of per-pixel stuff: do some overall w_object stats */
+      curpix = w_object->last_hp;
+      w_object->total=(w_object->total)+(temp_hp->value);
+      w_object->xpos=(w_object->xpos)+((temp_hp->x)*(temp_hp->value)); 
+      w_object->ypos=(w_object->ypos)+((temp_hp->y)*(temp_hp->value));
+      if ((w_object->peak)<(temp_hp->value))
+	w_object->peak=(temp_hp->value);  
+      w_object->numpix ++;
+      
+
+      /* start of recursive stuff */
+      for (x1 = cx-1; x1<=cx+1; x1++){
+	for (y1 = cy-1; y1<=cy+1; y1++){
+	  if (x1 >= naxis1 || y1 >= naxis2 || x1<0 || y1<0)  
+	    continue;                                           /* set a flag here to say crap object? */
+	  if (image[(y1*naxis1)+x1] > thresh){
+	    /* add this point to be processed */
+#if LOGGING > 9
+	    Object_Log_Format(OBJECT_LOG_BIT_POINT,
+			      "Object_List_Get_Connected_Pixels:"
+			      "adding point %d,%d to list.",x1,y1);
+#endif
+	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
+	      return FALSE;
+	  }
+	}/* end for on y1 */
+      }/* end for on x1 */
+    }
+
+    /* if already added to object */
+    /* -------------------------- */
+    else {
+#if LOGGING > 9
+      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
+			"pixel %d,%d already added to object, ignoring.",cx,cy);
+#endif
+    }
+    
+    /* delete processed point */
+    /* ---------------------- */
+#if LOGGING > 9
+    Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
+		      "deleting point %d,%d from list.",cx,cy);
+#endif
+    if(!Point_List_Remove_Head(&point_list,&point_count))
+      return FALSE;
+
+  }/* end while on point list */
+  
+
+
+
+  /* -------------------------------- */
+  /* CALCULATE MEAN X AND Y POSITIONS */
+  /* -------------------------------- */
   w_object->xpos=(w_object->xpos)/(w_object->total);
   w_object->ypos=(w_object->ypos)/(w_object->total);
+
+
   return TRUE;
 }
 
+
+
+
+/*
+---------------------------------------------------------------------
+  ___   _      _           _     ___               
+ / _ \ | |__  (_) ___  __ | |_  | __|_ _  ___  ___ 
+| (_) || '_ \ | |/ -_)/ _||  _| | _|| '_|/ -_)/ -_)
+ \___/ |_.__/_/ |\___|\__| \__| |_| |_|  \___|\___|
+            |__/                                   
+*/
 /**
  * Routine to free an Object. The pointer contents themselves are freed, after
  * freeing the highpixel list inside Object. The last_hp element is NOT freed, as this should
@@ -976,6 +1350,23 @@ static void Object_Free(Object **w_object)
   (*w_object) = NULL;
 }
 
+
+
+
+
+/*
+---------------------------------------------------------------------
+ ___       _       _     _     _      _     ___                            
+| _ \ ___ (_) _ _ | |_  | |   (_) ___| |_  | _ \ ___  _ __   ___ __ __ ___ 
+|  _// _ \| || ' \|  _| | |__ | |(_-<|  _| |   // -_)| '  \ / _ \\ V // -_)
+|_|  \___/|_||_||_|\__| |____||_|/__/ \__| |_|_\\___||_|_|_|\___/ \_/ \___|
+                                                                           
+ _  _                _ 
+| || | ___  __ _  __| |
+| __ |/ -_)/ _` |/ _` |
+|_||_|\___|\__,_|\__,_|
+                       
+*/
 /**
  * Routine to remove the first point in the list
  * @param point_list The address of the pointer pointing to the first item in the list.
@@ -1019,6 +1410,17 @@ static int Point_List_Remove_Head(struct Point_Struct **point_list,int *point_co
   return TRUE;
 }
 
+
+
+
+/*
+---------------------------------------------------------------------
+ ___       _       _     _     _      _       _       _     _ 
+| _ \ ___ (_) _ _ | |_  | |   (_) ___| |_    /_\   __| | __| |
+|  _// _ \| || ' \|  _| | |__ | |(_-<|  _|  / _ \ / _` |/ _` |
+|_|  \___/|_||_||_|\__| |____||_|/__/ \__| /_/ \_\\__,_|\__,_|
+                                                              
+*/
 /**
  * This routine is used to add the specified point to the point_list. 
  * @param point_list A linked list of points, this pointer points to the head of the list.
@@ -1113,7 +1515,7 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
 
 
 /*
----------------------------------------------------------------------
+-----------------------------------------------------------------------------
   ___   _      _           _       ___        _            _        _        
  / _ \ | |__  (_) ___  __ | |_    / __| __ _ | | __  _  _ | | __ _ | |_  ___ 
 | (_) || '_ \ | |/ -_)/ _||  _|  | (__ / _` || |/ _|| || || |/ _` ||  _|/ -_)
@@ -1135,49 +1537,46 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
  */
 static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stellar,float *fwhm)
 {
-  /* first and second order moments of the ellipse data */
-  float x2nd=0,y2nd=0,xy2nd=0;
-  /* off sets from the centre of the object determind by the centroid */
-  /* curpix->x  = spatial pixel values */
-  float xoff=0,yoff=0;
-  /* intensity = intensity in each pixel corrected for background*/
-  float intensity=0;
-  /* auxillary variable */
-  float aux=0,aux2=0;
-  /* semi-minor and semi-major axes of the ellipse */
-  float minor=0,major=0;
-  /* inclination angle of the ellipse, measured from Naxis1 to semi-major */
-  /* axis (ie anti clockwise) */
-  float theta;
-  /* difference between major and minor axes */
-  float diff;
-  /* pixel pointer */
-  HighPixel *curpix;
+
+  /* ---------------- */
+  /* VARIABLES CONFIG */
+  /* ---------------- */
+
+                                  /* object ellipticity */
+                                  /* ------------------ */
+  float x2nd=0,y2nd=0,xy2nd=0;    /* first and second order moments of the ellipse data */
+  float xoff=0,yoff=0;            /* offsets from the centre of the object determind by */
+                                  /*   the centroid curpix->x = spatial pixel values */
+  float intensity=0;              /* intensity in each pixel corrected for background */
+  float aux=0,aux2=0;             /* auxiliary variable */
+  float minor=0,major=0;          /* semi-minor and semi-major axes of the object ellipse */
+  float theta;                    /* angle of the ellipse, measured from Naxis1 to semi-major */
+                                  /*   axis (ie anti clockwise) */
+  float diff;                     /* difference between major and minor axes */
+  HighPixel *curpix;              /* pixel pointer */
+
+                                  /* Moffat curve fitting optimisation */
+                                  /* --------------------------------- */
+  double *pixr, *pixz;            /* optimisation r,z arrays */
+  int ipix;                       /* pixel counter */
+  double dx,dy;                   /* pixel offset from 1st moment */
+  double params[3];               /* Moffat curve parameters (k,a,b) */
+  int m;                          /* optimisation infinite counter */  
+  double k,a,b;                   /* Moffat curve parameters (k,a,b) */
+  double FWHM;                    /* FWHM */
 
 
-  /* Moffat curve fitting optimisation */
-  /* --------------------------------- */
-  double *pixr, *pixz;                 /* optimisation r,z arrays */
-  int ipix;                            /* pixel counter */
-  double dx,dy;                        /* pixel offset from 1st moment */
-  double params[3];                    /* Moffat curve parameters (k,a,b) */
-  int m;                               /* optimisation infinite counter */  
-  double k,a,b;                        /* Moffat curve parameters (k,a,b) */
-  double FWHM;                         /* FWHM */
 
 
+  
 
-  /*
-    ----------
-    2ND MOMENT
-    ----------
-  */
+  /* --------------------------------------------- */
+  /* CALCULATE OBJECT ELLIPTICITY (VIA 2ND MOMENT) */
+  /*                                               */
+  /* uses equations from SEXtractor and PISA       */
+  /* manual - see SUN109.1                         */
+  /* --------------------------------------------- */
 
-  /* calculate the 2nd moments of the ellipse in x y and xy  */
-  /* uses equations from SEXtractor manual and PISA manual -
-     SUN109.1 */
-
-  /* should really check w_object, fwhm and is_stellar here for NULL. */
   curpix = w_object->highpixel;
   while(curpix !=NULL)
     {
@@ -1217,34 +1616,29 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     }
 
 
-  /*
-    ---------------
-    FWHM CONDITIONS
-    ---------------
-  */
 
-  /*
-    -----------
-    non-stellar
-    -----------
-  */
-  
+  /* -------------- */
+  /* CALCULATE FWHM */
+  /* -------------- */
+
+  /* define default fwhms if meet rejection criteria */
+  /* ----------------------------------------------- */
+
+
   if (w_object->is_stellar == FALSE){
-    w_object->fwhmx = 999.0;
-    w_object->fwhmy = 999.0;
-    (*fwhm) = 999.0;
+    w_object->fwhmx = DEFAULT_NONSTELLAR;
+    w_object->fwhmy = DEFAULT_NONSTELLAR;
+    (*fwhm) = DEFAULT_NONSTELLAR;
   }
 
-  /*
-    ---------
-    too faint
-    ---------
-  */
-/*   else if ((w_object->peak/BGmedian) < 10.0){ */
-/*     w_object->fwhmx = 999.0; */
-/*     w_object->fwhmy = 999.0; */
-/*     (*fwhm) = 999.0;     */
-/*   } */
+  else if 
+
+
+
+
+
+
+
 
 
   /*
@@ -1336,131 +1730,15 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
 
 
+/*
+---------------------------------------------------------------------
+ ___            _     ___  _             _   
+/ __| ___  _ _ | |_  | __|| | ___  __ _ | |_ 
+\__ \/ _ \| '_||  _| | _| | |/ _ \/ _` ||  _|
+|___/\___/|_|   \__| |_|  |_|\___/\__,_| \__|
+                                             
+*/
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*    for(ii = 1; ii < w_object->numpix; ii++) { */
-/*       if(p[ii].z > peak) */
-/* 	peak = p[ii].z; */
-/*     } */
-
-/*     params[0] = peak; */
-/*     params[1] = mf_a_start; */
-/*     params[2] = mf_b_start; */
-    
-
-
-/*     /\* OPTIMIZE *\/ */
-/*     for (i=0; i<=2000; i++){ */
-/*       sm = 0.0;                         /\* sum of slopes *\/ */
-/*       params2[0] = params[0];           /\* initialise 2nd parameter array *\/ */
-/*       params2[1] = params[1]; */
-/*       params2[2] = params[2]; */
-/*       d1 = delta(p, w_object->numpix, params);    /\* calc goodness of fit (delta) for initial params *\/ */
- 
-/*       for(j = 1; j <= 2; j++) {                     /\* for parameters a and b (not Io) *\/ */
-/* 	tmp = params[j];                            /\* current parameter value *\/ */
-/* 	params2[j] = params[j] + EPS;               /\* increment new parameter by EPS *\/ */
-/* 	d2 = delta(p, w_object->numpix, params2);   /\* calc new goodness of fit (delta) *\/ */
-/* 	m = (d2 - d1) / EPS;                        /\* calc slope in delta space *\/ */
-/* 	sm += (1 + m) * (1 + m);                    /\* add to sum of slopes *\/ */
-	
-/* 	/\* This is stolen from iRprop. *\/ */
-/* 	if(momentum[j] * m > 0) {         /\* momentum & slope same signs? *\/ */
-/* 	  momentum[j] *= 1.1;             /\* accelerate forwards *\/ */
-/* 	} else { */
-/* 	  momentum[j] *= -0.9091;         /\* slow down & backwards *\/ */
-/* 	} */
-/* 	/\* Threshold the momentum before applying *\/ */
-/* 	momentum[j] = sign(momentum[j]) * MIN(fabs(momentum[j]),0.2); */
-
-/* 	params[j] = params2[j] - momentum[j];  /\* change original parameter *\/ */
-/* 	params2[j] = tmp;                      /\* new parameter becomes old one *\/ */
-
-
-/* 	/\* STOPPING CONDITIONS *\/ */
-	
-/* 	/\* -- by delta *\/ */
-
-/* 	if (d2 < minDelta) {              /\* if difference small enough *\/ */
-/* 	  printf("minDelta stop at iteration %d\n", i); */
-/* 	  minDelta = d2;                  /\* note values & carry on a bit.... *\/ */
-/* 	  best[0] = params2[0]; */
-/* 	  best[1] = params2[1]; */
-/* 	  best[2] = params2[2]; */
-/* 	  bestIter = i; */
-/* 	} else { */
-/* 	  if(i - bestIter > 20)           /\* ... but eventually stop after   *\/ */
-/* 	    break;                        /\* 20 more goes if no new bestIter *\/ */
-/* 	} */
-	
-	
-/* 	/\* -- by slope *\/ */
-/* 	if(sm < earlystop) { */
-/* 	  printf("Early Stop at iteration %d\n", i); */
-/* 	  break; */
-/* 	} */
-
-/*       } /\* end of parameter loop *\/ */
-      
-/*       /\* Write final parameters to params array *\/ */
-/*       params[0] = best[0]; */
-/*       params[1] = best[1]; */
-/*       params[2] = best[2]; */
-
-/*     } */
-
-/*     /\* printf("-- Optimized moffat parameters for object %d: Io = %f\ta = %f\tb = %f\n", */
-/*        w_object->objnum,params[0], params[1], params[2]); *\/ */
-
-/*     moffat_a = params[1]; */
-/*     moffat_b = params[2]; */
-
-
-/*     /\*  */
-/*        -------------- */
-/*        CALCULATE FWHM   */
-/*        -------------- */
-/*     *\/ */
-  
-/*     /\* printf("-- calc FWHM\n"); *\/ */
-/*     /\* Calculate FWHM from ma, mb *\/ */
-/*     fw = 2.0 * moffat_a * sqrt( pow(2.0,(1.0/moffat_b)) - 1.0 ); */
-
-/*     /\* printf("-- write to object struct\n"); *\/ */
-/*     /\* Put in object struct requirements *\/ */
-/*     w_object->fwhmx = fw; */
-/*     w_object->fwhmy = fw; */
-/*     (*fwhm) = fw; */
-
-
-/*     /\*printf("%d\t%f\t%f\t%f\n",w_object->objnum,min_a,min_b,fw);*\/ */
-
-/*     /\* printf("-- clear struct\n"); *\/ */
-/*     /\* Clear struct 'p' memory *\/ */
-/*     if (p != NULL) */
-/*       free(p); */
-/*   } /\* end of if stellar flag TRUE *\/ */
-
-/* } */
-
-
-/* Sort_Float */
 static int Sort_Float(const void *data1,const void *data2)
 {
   return *((float *) data1) < * ((float *) data2);
@@ -1613,6 +1891,9 @@ int sign(double x){
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.7  2008/02/05 18:30:18  eng
+** This version (1.6) uses a Gradient Descent (GD) routine in optimise() to curve fit. Should be faster and more accurate - testing will show. Current implementation using default settings. Also added a few lines in Object_Calculate_FWHM to write best fit parameters to new variables in w_object, for diagnostic purposes.
+**
 ** Revision 1.6  2008/02/05 18:11:10  eng
 ** Slight tweak to write moffat curve fitting parameters into new w_object variables
 ** in Object_Calculate_FWHM.

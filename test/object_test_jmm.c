@@ -29,7 +29,7 @@
 
 */
 /* object_test_jmm.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.3 2008-02-05 18:08:38 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.4 2008-04-30 14:47:35 eng Exp $
 */
 
 
@@ -45,7 +45,15 @@
 
 
 /*
+ *
+ *
+ *
+ *
   $Log: not supported by cvs2svn $
+  Revision 1.3  2008/02/05 18:08:38  eng
+  Tweaked to handle extra moffat curve fitting parameters in w_object struct. Also got rid of some
+  defunct variables in output format.
+
   Revision 1.2  2007/11/23 19:41:56  eng
   Changes to calculate secondary FWHM based on info from Chris Simpson.
   These extra fwhm values (fwhmx2, fwhmy2) plus the peak pixel value with
@@ -55,7 +63,10 @@
   Information for L1SEEING testing purposes: the extra columns are ignored
   by L1psf2 which just looks at the first few columns for object coordinates.
   PrintL1psf2 is the script that handles these extra columns.
-
+  *
+  *
+  *
+  *
 */
 
 
@@ -94,7 +105,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_jmm.c,v 1.3 2008-02-05 18:08:38 eng Exp $";
+static char rcsid[] = "$Id: object_test_jmm.c,v 1.4 2008-04-30 14:47:35 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -130,7 +141,7 @@ int main(int argc, char *argv[])
 
   /* TEST ONLY   */
   FILE *fPtr;
-  fPtr = fopen("test.txt", "w");
+  fPtr = fopen("objectfile.txt", "w");
 
 
   /*
@@ -196,7 +207,7 @@ int main(int argc, char *argv[])
   /* print out time taken & column headers for results
      ------------------------------------------------- */  
   fprintf(stdout,"The procedure took %d ms.\n",difftimems(start_time,stop_time));
-  fprintf(stdout,"The seeing was %f with seeing_flag = %d (0 is good).\n",seeing,seeing_flag);
+  fprintf(stdout,"The seeing was %f pixels with seeing_flag = %d (0 is good).\n",seeing,seeing_flag);
   fprintf(stdout,"objnum\txpos\typos\tfwhm\tmf_k\tmf_a\tmf_b\ttotal\tnumpix\tpeak\n");
   object = object_list;
   while(object != NULL){
@@ -213,6 +224,16 @@ int main(int argc, char *argv[])
             object->total,
             object->numpix,
             peak_abs);
+
+    fprintf(fPtr,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n",
+            object->objnum,
+            object->xpos,object->ypos,
+            object->fwhmx,                                                 /* fwhmx = fwhmy = fwhm */
+            object->moffat_k,object->moffat_a,object->moffat_b,
+            object->total,
+            object->numpix,
+            peak_abs);
+
     
     object = object->nextobject;
   }
@@ -678,6 +699,10 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.3  2008/02/05 18:08:38  eng
+** Tweaked to handle extra moffat curve fitting parameters in w_object struct. Also got rid of some
+** defunct variables in output format.
+**
 ** Revision 1.2  2007/11/23 19:41:56  eng
 ** Changes to calculate secondary FWHM based on info from Chris Simpson.
 ** These extra fwhm values (fwhmx2, fwhmy2) plus the peak pixel value with

@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.8 2008-03-06 12:23:06 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.9 2008-04-30 15:18:19 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.8 $
+ * @version $Revision: 1.9 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.8  2008/03/06 12:23:06  eng
+  Checked in temporarily for laughs.
+
   Revision 1.7  2008/02/05 18:30:18  eng
   This version (1.6) uses a Gradient Descent (GD) routine in optimise() to curve fit. Should be faster and more accurate - testing will show. Current implementation using default settings. Also added a few lines in Object_Calculate_FWHM to write best fit parameters to new variables in w_object, for diagnostic purposes.
 
@@ -114,9 +117,16 @@
  * Should be larger than 10 pixels, so RCS thinks seeing is "bad".
  * RJS wants really large value so archive searches can differentiate between real bad seeing and failed reductions.
  */
-#define MAX_N_MEDIAN_FWHM     (12)
-#define DEFAULT_BAD_SEEING    (999.0)
-#define DEFAULT_NONSTELLAR    (999.0)
+#define MAX_N_FWHM            (11)               /* deliberately chosen to be odd */
+#define MAX_N_FWHM_MID        (5)                /* median for 11 items           */
+
+#define DEFAULT_BAD_SEEING         (999.0)       /* generic "bad seeing" flag                  */
+#define DEFAULT_SEEING_NONSTELLAR  (988.0)       /* too elliptical                             */
+#define DEFAULT_SEEING_TOOSMALL    (977.0)       /* less than 0.01 pixels                      */
+#define DEFAULT_SEEING_BADFIT      (966.0)       /* fitted moffat curve fwhm > object diameter */
+
+#define STELLAR_ELLIP_LIMIT          (0.2)         /* upper limit of ellipticity for an object to be */
+                                                 /* classed as 'stellar' */
 
 /* ------------------------------------------------------- */
 /* structure declarations */
@@ -135,6 +145,26 @@ struct Point_Struct
   int y;
   struct Point_Struct *next_point;
 };
+
+
+/**
+ * Structure to sort object fwhms by object "size" (numpix).
+ * <ul>
+ * <li><b>int numpix</b>
+ * <li><b>float fwhm</b>
+ * </ul>
+ */
+struct sizefwhm
+{
+  int numpix;
+  float fwhm;
+  int objnum;
+  float xpos;
+  float ypos;
+};
+
+
+
 
 /**
  * Structure containing logging data.
@@ -161,7 +191,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.8 2008-03-06 12:23:06 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.9 2008-04-30 15:18:19 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -205,6 +235,10 @@ double delta(const double *x, const double *y, const int items, const double par
 int sign(double x);
 double findMax(const double *a, const int items);
 double optimize(const double *x, const double *y, int items, double params[]);
+int intcmp(const void *v1, const void *v2);
+int sizefwhm_cmp_by_numpix(const void *v1, const void *v2);
+int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2);
+
 #define MAX_ITERS 2000
 #define EARLY_STOP 4.5
 #define EPS 10e-10
@@ -251,8 +285,19 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   HighPixel *curpix = NULL;
   float fwhm;
   float *fwhm_list = NULL;
-  int y,x,count,done,is_stellar,mid;
+  int y,x,count,done,is_stellar;
   int fwhm_count = 0;
+  int fwhm_lt_dia_count = 0;
+  int fwhmarray_size = 0;
+  struct sizefwhm *fwhmarray = NULL;        /* array for objects whose fwhm is smaller than its diameter */
+  int obj_area;                             /* number of pixels in object */
+  float obj_fwhm;                           /* object fwhm in pixels */
+  float obj_dia;                            /* object pseudo-diameter (pixels) */
+  int mid_posn;                             /* middle position of fwhmarray, to find median */
+  int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
+  float median_fwhm;                        /* median fwhm obtained from fwhmarray */
+  int i;                                    /* generic counter */
+
 
   Object_Error_Number = 0;
 #ifdef MEMORYCHECK
@@ -362,6 +407,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       */
       return TRUE;
     }
+
 
 
   /* ---------------------------------- */
@@ -488,6 +534,29 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
+
+
+
+
+  /* -------------------------------- */
+  /* Add 1 to each object's xpos,ypos */
+  /* -------------------------------- */
+/*   w_object = (*first_object); */
+/*   while(w_object != NULL){ */
+/*     w_object->xpos++; */
+/*     w_object->ypos++; */
+/*     w_object = w_object->nextobject;		 */
+/*   } */
+
+
+
+
+
+
+
+
+
+
   /* extra debug - list connected pixels in all objects */
   /* -------------------------------------------------- */
 #if LOGGING > 5
@@ -577,9 +646,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
-  /* ----------------------------- */
-  /* CALCULATE FINAL FWHM (MEDIAN) */
-  /* ----------------------------- */
+
+
 
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Calculating final seeing.");
@@ -588,59 +656,206 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
-
-  /* sort through object structs sorting by numpix */
-
-
-
+  /* ----------------------------- */     /* CJM: diddly In the original code theres */
+  /* CALCULATE FINAL FWHM (MEDIAN) */     /* a bit here concerned with numobjs that */
+  /* ----------------------------- */     /* makes no sense at all to me */
 
 
+  /* If any fwhms at all */
+  /* ------------------- */
+#if LOGGING > 0
+  printf("Number of objects available: %d\n", fwhm_count);
+#endif
+  if(fwhm_count > 0) {
+
+    /* Create array of numpix & fwhm structs              */
+    /* NB: fwhm_count >= fwhm_lt_dia_count defined below. */
+    /* Will realloc array after it's been filled.         */
+    /* -------------------------------------------------- */
+
+    fwhmarray = (struct sizefwhm *) malloc(fwhm_count * sizeof(struct sizefwhm));
 
 
 
-
-
-
-
-
-  /* diddly In the original code theres a bit here concerned with numobjs
-  ** that makes no sense at all to me */
-
-  /* if we have some FWHMs to play with */
-  /* ---------------------------------- */
-  if(fwhm_count > 0)
-    {
-      qsort(fwhm_list,fwhm_count,sizeof(float),Sort_Float);               /* sort the list */
-      mid = (fwhm_count-1)/2;                                             /* calculate median position */
-      (*seeing) = fwhm_list[mid];                                         /* select median seeing */
-      (*sflag) = 0;                                                       /* set sflag to zero (obviously) */
+    /* populate array of structs from w_object,            */
+    /* but ONLY IF fwhm < diameter of object;              */
+    /* fwhm_lt_dia_count = "fwhm-less-than-diameter-count" */
+    /* --------------------------------------------------- */
+#if LOGGING > 0
+    printf("         \tfwhm\tdia\n");
+#endif
+    w_object = (*first_object);                           /* set w_object to first obj in list */
+    while(w_object != NULL){                              /* start running through all objects */
+      obj_area = w_object->numpix;
+      obj_fwhm = w_object->fwhmx;	  
+      obj_dia = sqrt( 1.2732 * obj_area);                 /* pseudo-diameter. 1.2732 = 4/pi    */
+      if (obj_fwhm < obj_dia){                            /* add object to array only if fwhm < dia... */
+	fwhmarray[fwhm_lt_dia_count].numpix = obj_area;
+	fwhmarray[fwhm_lt_dia_count].fwhm = obj_fwhm;
+	fwhmarray[fwhm_lt_dia_count].objnum = w_object->objnum;
+	fwhmarray[fwhm_lt_dia_count].xpos = w_object->xpos;
+	fwhmarray[fwhm_lt_dia_count].ypos = w_object->ypos;
+	fwhm_lt_dia_count++;                              /* ... and increment counter */
+      }
+#if LOGGING > 0
+      printf("Object %d\t%f\t%f\t(%d)\n",w_object->objnum,obj_fwhm,obj_dia,fwhm_lt_dia_count);
+#endif
+      w_object = w_object->nextobject;                    /* go to next object */		
+    }
       
+
+#if LOGGING > 0
+    printf("Number of objects with FWHM < diameter: %d\n\n", fwhm_lt_dia_count);
+#endif
+
+
+    /* If some fwhms were < diameter, then */
+    /* find median fwhm of top N brightest */
+    /* objects in this array               */
+    /* ----------------------------------- */
+    if ( fwhm_lt_dia_count > 0 ){
+
+      /* trim fwhmarray array to exact number of objects (fwhm_lt_dia_count) */
+      fwhmarray = (struct sizefwhm *) realloc(fwhmarray,fwhm_lt_dia_count*sizeof(struct sizefwhm));
       
-      /* If the seeing is less than 0.01 */
-      if ((*seeing)<=0.01)
-	{
-	  (*seeing) = DEFAULT_BAD_SEEING;                   /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
-	  (*sflag) = 1;                                     /* and set sflag to show the seeing was fudged */
+      /* set standard array size descriptor (necessary for later on) */
+      fwhmarray_size = fwhm_lt_dia_count;
+
+
+#if LOGGING > 0
+      /* diagnostics */
+      printf("original object list\n--------------------\n");
+      for (i=0;i<fwhmarray_size;i++)
+	printf("[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+      printf("\n\n");
+#endif
+
+      /* sort array (LARGEST FIRST) by 1st struct member (numpix) */
+      qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_numpix);
+
+#if LOGGING > 0
+      /* diagnostics */
+      printf("sorted by numpix\n--------------------\n");
+      for (i=0;i<fwhmarray_size;i++)
+	printf("[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+      printf("\n\n");
+#endif     
+      
+      /* now they're sorted by size, if the number of objects is greater than the maximum
+	 we're going to use to find the median (i.e. the "Top N") then we need to truncate the
+	 array even further, i.e. reallocate again, this time to N objects (i.e. MAX_N_FWHM) */
+      if (fwhmarray_size > MAX_N_FWHM){
+	fwhmarray = (struct sizefwhm *) realloc(fwhmarray,MAX_N_FWHM*sizeof(struct sizefwhm));
+	fwhmarray_size = MAX_N_FWHM;
+	
+#if LOGGING > 0
+	printf("N > MAX_N_FWHM:\n");
+#endif
+
+	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
+	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
+#if LOGGING > 0
+	printf("truncated & sorted by fwhm\n--------------------\n");
+	for (i=0;i<fwhmarray_size;i++)
+	  printf("toplist\t%d\t%d\t%d\t%f\t%f\t%f\n",
+		 i,fwhmarray[i].objnum,
+		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
+		 fwhmarray[i].xpos,fwhmarray[i].ypos);
+	printf("\n\n");
+#endif
+	
+	/* find median */
+	mid_posn = MAX_N_FWHM_MID;
+	median_fwhm = fwhmarray[mid_posn].fwhm;
+      }
+
+      /* otherwise, if fwhmarray_size < MAX_N_FWHM */
+      else {
+
+#if LOGGING > 0	
+	printf("N < MAX_N_FWHM:\n");
+#endif
+	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
+	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
+#if LOGGING > 0	
+	printf("sorted by FWHM\n---------\n");
+	for (i=0;i<fwhmarray_size;i++)
+	  printf("[%d] (%d)\t%d\t%f\t%f\t%f\n",
+		 i,fwhmarray[i].objnum,
+		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
+		 fwhmarray[i].xpos,fwhmarray[i].ypos);
+	printf("\n\n");
+#endif
+	
+	/* find median */
+	/* fwhmarray_size EVEN */
+	if (fwhmarray_size % 2 == 0){
+	  lower_mid_posn = (int) ((fwhmarray_size - 1)/2);
+	  upper_mid_posn = (int) (fwhmarray_size/2);
+	  median_fwhm = (fwhmarray[lower_mid_posn].fwhm + fwhmarray[upper_mid_posn].fwhm)/2.0;
 	}
+	
+	/* fwhmarray_size ODD */
+	else {
+	  mid_posn = (int) (fwhmarray_size/2);
+	  median_fwhm = fwhmarray[mid_posn].fwhm;
+	}
+      }
+
+#if LOGGING > 0	
+      printf("median_fwhm = [%d] (%d) %f\n",mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
+#endif
+
+      /* Set seeing to median_fwhm */
+      /* ------------------------- */
+      (*seeing) = median_fwhm;
+      (*sflag) = 0;                                  /* set sflag to zero (obviously) */
+      
+      
+      /* If the seeing is less than 0.01.... */
+      if ((*seeing)<=0.01){
+	(*seeing) = DEFAULT_SEEING_TOOSMALL;        /* set the seeing to DEFAULT_SEEING_TOOSMALL */
+	(*sflag) = 1;                               /* and set sflag to show the seeing was fudged */
+      }
+
+    } /* end fwhm_lt_dia_count > 0 */
+
+
+
+    /* If NO object fwhms < diameter....    */
+    /* i.e. if fwhm_lt_dia_count == 0       */
+    /* ------------------------------------ */
+    else { 
+      (*seeing) = DEFAULT_SEEING_BADFIT;             /* set the seeing to show no object's fwhm was less than its dia */
+      (*sflag) = 1;                                  /* show fudged */
     }
 
 
-  /* if there are no FWHMs (if list empty) */
-  /* ------------------------------------- */
-  else
-    {
-      (*seeing) = DEFAULT_BAD_SEEING;                       /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
-      (*sflag) = 1;                                         /* and set sflag to show the seeing was fudged */
-    }
+
+  } /* end "if any fwhms at all" */
+
+
+
+  /* If NO fwhms at all */
+  /* ------------------ */
+  else {
+    (*seeing) = DEFAULT_BAD_SEEING;                  /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
+    (*sflag) = 1;                                    /* and set sflag to show the seeing was fudged */
+  }
 
 
 
 
-  /* ---------------- */
-  /* DELETE FWHM LIST */
-  /* ---------------- */
+  /* ----------- */
+  /* FREE MEMORY */
+  /* ----------- */
   if(fwhm_list != NULL)
     free(fwhm_list);
+
+  if(fwhmarray != NULL)
+    free(fwhmarray);
+
+
 
 
 
@@ -659,8 +874,6 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 			"faking result = %.2f pixels.",(*seeing));
     }
 #endif
-
-
 
 
   return TRUE;
@@ -1260,7 +1473,6 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 	w_object->peak=(temp_hp->value);  
       w_object->numpix ++;
       
-
       /* start of recursive stuff */
       for (x1 = cx-1; x1<=cx+1; x1++){
 	for (y1 = cy-1; y1<=cy+1; y1++){
@@ -1308,6 +1520,12 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
   /* -------------------------------- */
   w_object->xpos=(w_object->xpos)/(w_object->total);
   w_object->ypos=(w_object->ypos)/(w_object->total);
+
+
+
+
+
+
 
 
   return TRUE;
@@ -1553,7 +1771,9 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   float theta;                    /* angle of the ellipse, measured from Naxis1 to semi-major */
                                   /*   axis (ie anti clockwise) */
   float diff;                     /* difference between major and minor axes */
+  float ellip;                    /* ellipticity = (major-minor)/major */
   HighPixel *curpix;              /* pixel pointer */
+  char stellarflag[32];           /* stellar flag string for diagnostics */
 
                                   /* Moffat curve fitting optimisation */
                                   /* --------------------------------- */
@@ -1598,22 +1818,41 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   aux2=2*(sqrt( ((x2nd-y2nd)*(x2nd-y2nd)) + 4*xy2nd*xy2nd ));
   major=sqrt(aux+aux2);
   minor=sqrt(aux-aux2);
-  if (major!= minor)
+  if (major != minor)
     theta=atan2((2*xy2nd),(x2nd-y2nd));
   else
     theta=0;
   
   diff=major-minor;
-  if (diff<=major*0.3)
+  ellip = (major-minor)/major;
+
+  if (ellip <= STELLAR_ELLIP_LIMIT)
     {
       (*is_stellar) = TRUE;            /* object is STELLAR */
       w_object->is_stellar = TRUE;
+      sprintf(stellarflag,"stellar");
     }
   else
     {
       (*is_stellar) = FALSE;           /* object is NONSTELLAR */
       w_object->is_stellar = FALSE;
+      sprintf(stellarflag,"NON-stellar");
     }
+
+  /* extra debug - show ellipticity of object */
+  /* ---------------------------------------- */
+#if LOGGING > 5
+  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,
+		    "Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\t%s",
+		    w_object->objnum,
+		    major,minor,
+		    ellip,
+		    stellarflag);
+#endif
+  
+
+
+
 
 
 
@@ -1626,25 +1865,16 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
 
   if (w_object->is_stellar == FALSE){
-    w_object->fwhmx = DEFAULT_NONSTELLAR;
-    w_object->fwhmy = DEFAULT_NONSTELLAR;
-    (*fwhm) = DEFAULT_NONSTELLAR;
+    w_object->fwhmx = DEFAULT_SEEING_NONSTELLAR;
+    w_object->fwhmy = DEFAULT_SEEING_NONSTELLAR;
+    (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
   }
-
-  else if 
-
-
-
-
-
-
-
 
 
   /*
-    ------------------------
-    FWHM IF BRIGHT & STELLAR
-    ------------------------
+    ---------------
+    FWHM IF STELLAR
+    ---------------
   */
   else {
 
@@ -1877,7 +2107,10 @@ double optimize(const double *x, const double *y, int items, double params[]) {
 }
 
 
+
+/* ---- */
 /* SIGN */
+/* ---- */
 int sign(double x){
   if ( x == 0.0 )
     return 0;
@@ -1887,10 +2120,54 @@ int sign(double x){
 
 
 
+/* ------ */
+/* INTCMP */
+/* ------ */
+int intcmp(const void *v1, const void *v2)
+{
+return(*(int *)v1- *(int *)v2);
+}
+
+
+
+/* ---------------------- */
+/* SIZEFWHM_CMP_BY_NUMPIX */
+/* sorts by LARGEST first */
+/* ---------------------- */
+int sizefwhm_cmp_by_numpix(const void *v1, const void *v2)
+{
+  struct sizefwhm *sf1, *sf2;
+  sf1 = (struct sizefwhm *) v1;
+  sf2 = (struct sizefwhm *) v2;
+  
+  return(sf2->numpix - sf1->numpix);  /* numpix is an int */
+}
+
+
+/* -------------------- */
+/* SIZEFWHM_CMP_BY_FWHM */
+/* -------------------- */
+int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
+{
+  struct sizefwhm *sf1, *sf2;
+  sf1 = (struct sizefwhm *) v1;
+  sf2 = (struct sizefwhm *) v2;
+  
+  if (sf1->fwhm > sf2->fwhm)      /* this needed because fwhm is a float */
+    return 1;
+  else if (sf1->fwhm < sf2->fwhm)
+    return -1;
+  else
+    return 0;
+}
+
 
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.8  2008/03/06 12:23:06  eng
+** Checked in temporarily for laughs.
+**
 ** Revision 1.7  2008/02/05 18:30:18  eng
 ** This version (1.6) uses a Gradient Descent (GD) routine in optimise() to curve fit. Should be faster and more accurate - testing will show. Current implementation using default settings. Also added a few lines in Object_Calculate_FWHM to write best fit parameters to new variables in w_object, for diagnostic purposes.
 **

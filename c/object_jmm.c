@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.9 2008-04-30 15:18:19 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.10 2008-05-06 10:57:15 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,22 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.9 $
+ * @version $Revision: 1.10 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.9  2008/04/30 15:18:19  eng
+  Now selects the N brightest objects (default N = 11) sorting by numpix (roughly corresponding
+  to area), then resorting by FWHM and taking the median.
+
+  Briefly changed centroid position (xpos,ypos) to (xpos+1,ypos+1) in mistaken belief that
+  centroiding code was off by one. Turns out it was difference in reporting position of centroid
+  by C code with respect to IRAF code that was causing the confusion (C counts from zero but IRAF
+  counts from 1). However, legacy of adjustment code left in (commented out!) as a reminder.
+
   Revision 1.8  2008/03/06 12:23:06  eng
   Checked in temporarily for laughs.
 
@@ -191,7 +200,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.9 2008-04-30 15:18:19 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.10 2008-05-06 10:57:15 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -664,8 +673,9 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* If any fwhms at all */
   /* ------------------- */
 #if LOGGING > 0
-  printf("Number of objects available: %d\n", fwhm_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d\n", fwhm_count);
 #endif
+
   if(fwhm_count > 0) {
 
     /* Create array of numpix & fwhm structs              */
@@ -682,7 +692,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
     /* fwhm_lt_dia_count = "fwhm-less-than-diameter-count" */
     /* --------------------------------------------------- */
 #if LOGGING > 0
-    printf("         \tfwhm\tdia\n");
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"         \tfwhm\tdia\n");
 #endif
     w_object = (*first_object);                           /* set w_object to first obj in list */
     while(w_object != NULL){                              /* start running through all objects */
@@ -698,14 +708,14 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	fwhm_lt_dia_count++;                              /* ... and increment counter */
       }
 #if LOGGING > 0
-      printf("Object %d\t%f\t%f\t(%d)\n",w_object->objnum,obj_fwhm,obj_dia,fwhm_lt_dia_count);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)\n",w_object->objnum,obj_fwhm,obj_dia,fwhm_lt_dia_count);
 #endif
       w_object = w_object->nextobject;                    /* go to next object */		
     }
       
 
 #if LOGGING > 0
-    printf("Number of objects with FWHM < diameter: %d\n\n", fwhm_lt_dia_count);
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects with FWHM < diameter: %d\n\n", fwhm_lt_dia_count);
 #endif
 
 
@@ -723,45 +733,45 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-      /* diagnostics */
-      printf("original object list\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------\n");
       for (i=0;i<fwhmarray_size;i++)
-	printf("[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      printf("\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif
 
       /* sort array (LARGEST FIRST) by 1st struct member (numpix) */
       qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_numpix);
 
 #if LOGGING > 0
-      /* diagnostics */
-      printf("sorted by numpix\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------\n");
       for (i=0;i<fwhmarray_size;i++)
-	printf("[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      printf("\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif     
       
       /* now they're sorted by size, if the number of objects is greater than the maximum
 	 we're going to use to find the median (i.e. the "Top N") then we need to truncate the
-	 array even further, i.e. reallocate again, this time to N objects (i.e. MAX_N_FWHM) */
+	 array even further, i.e. reallocate again, this time to N objects (i.e. MAX_N_FWHM).
+	 NB: MAX_N_FWHM is deliberately chosen to be odd so that the median position MAX_N_FWHM_MID
+	 can be stated straightaway. */
       if (fwhmarray_size > MAX_N_FWHM){
 	fwhmarray = (struct sizefwhm *) realloc(fwhmarray,MAX_N_FWHM*sizeof(struct sizefwhm));
 	fwhmarray_size = MAX_N_FWHM;
 	
 #if LOGGING > 0
-	printf("N > MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:\n");
 #endif
 
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0
-	printf("truncated & sorted by fwhm\n--------------------\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------\n");
 	for (i=0;i<fwhmarray_size;i++)
-	  printf("toplist\t%d\t%d\t%d\t%f\t%f\t%f\n",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f\n",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
-	printf("\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif
 	
 	/* find median */
@@ -773,18 +783,18 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       else {
 
 #if LOGGING > 0	
-	printf("N < MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:\n");
 #endif
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0	
-	printf("sorted by FWHM\n---------\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n---------\n");
 	for (i=0;i<fwhmarray_size;i++)
-	  printf("[%d] (%d)\t%d\t%f\t%f\t%f\n",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f\t%f\n",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
-	printf("\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif
 	
 	/* find median */
@@ -803,7 +813,13 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       }
 
 #if LOGGING > 0	
-      printf("median_fwhm = [%d] (%d) %f\n",mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
+      if ( fwhmarray_size % 2 == 0 ) /* if EVEN */
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d,%d] (%d,%d) %f\n",
+	       lower_mid_posn,upper_mid_posn,
+	       fwhmarray[lower_mid_posn].objnum,fwhmarray[upper_mid_posn].objnum,
+	       median_fwhm);
+      else /* if ODD */
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d] (%d) %f\n",mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
 #endif
 
       /* Set seeing to median_fwhm */
@@ -2165,6 +2181,15 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.9  2008/04/30 15:18:19  eng
+** Now selects the N brightest objects (default N = 11) sorting by numpix (roughly corresponding
+** to area), then resorting by FWHM and taking the median.
+**
+** Briefly changed centroid position (xpos,ypos) to (xpos+1,ypos+1) in mistaken belief that
+** centroiding code was off by one. Turns out it was difference in reporting position of centroid
+** by C code with respect to IRAF code that was causing the confusion (C counts from zero but IRAF
+** counts from 1). However, legacy of adjustment code left in (commented out!) as a reminder.
+**
 ** Revision 1.8  2008/03/06 12:23:06  eng
 ** Checked in temporarily for laughs.
 **

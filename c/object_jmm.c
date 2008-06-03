@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12 2008-05-29 22:26:09 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.1.1 2008-06-03 12:44:21 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,17 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12 $
+ * @version $Revision: 1.12.1.1 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12  2008/05/29 22:26:09  eng
+  Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
+  THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.
+
   Revision 1.11  2008/05/29 15:35:48  eng
   Having to check this version in unfinished because I need to look at an older
   version for RJS' benefit. If I just had a different file with a different name
@@ -212,7 +216,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12 2008-05-29 22:26:09 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.1.1 2008-06-03 12:44:21 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -279,6 +283,11 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2);
 | |\  |  __/\ V  V / 
 |_| \_|\___| \_/\_/  
                      
+
+New version of Object_List_Get with all the experimental calculations and extra
+arguments intact. For backwards compatibility, the original Object_List_Get function
+remains as a wrapper to this one.
+
 */
 
 /**
@@ -2860,6 +2869,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12  2008/05/29 22:26:09  eng
+** Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
+** THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.
+**
 ** Revision 1.11  2008/05/29 15:35:48  eng
 ** Having to check this version in unfinished because I need to look at an older
 ** version for RJS' benefit. If I just had a different file with a different name

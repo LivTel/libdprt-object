@@ -29,7 +29,7 @@
 
 */
 /* object_test_jmm.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.5 2008-06-03 15:03:03 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.5.1.1 2008-06-03 15:10:56 eng Exp $
 */
 
 
@@ -50,6 +50,11 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.5  2008/06/03 15:03:03  eng
+  Checked in by JMM in preparation for a branching of version 1.4. Just wanted
+  to save what was done up to this point. This version adds extra functionality to the
+  arguments, such as selecting a sigma value for thresholding.
+
   Revision 1.4  2008/04/30 14:47:35  eng
   Output results to (non-user-configurable) output file as well as stdout.
 
@@ -108,7 +113,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_jmm.c,v 1.5 2008-06-03 15:03:03 eng Exp $";
+static char rcsid[] = "$Id: object_test_jmm.c,v 1.5.1.1 2008-06-03 15:10:56 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -212,6 +217,7 @@ int main(int argc, char *argv[])
       fprintf(stdout,"object_test: Median = %.2f, thresholding at %.2f sig (1 sig = %.2f) so thresh = %.2f\n",
 	      Median, BGSigma, Background_SD, thresh);
   }
+
 
   /*
     -------------
@@ -826,6 +832,10 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.5  2008/06/03 15:03:03  eng
+** Checked in by JMM in preparation for a branching of version 1.4. Just wanted
+** to save what was done up to this point.
+**
 ** Revision 1.4  2008/04/30 14:47:35  eng
 ** Output results to (non-user-configurable) output file as well as stdout.
 **

@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.1.1 2008-06-03 12:44:21 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.1.2 2008-06-03 14:06:28 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.1.1 $
+ * @version $Revision: 1.12.1.2 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.1.1  2008/06/03 12:44:21  eng
+  Branch-off to test cookie-cutter ("CC") approach.
+
   Revision 1.12  2008/05/29 22:26:09  eng
   Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
   THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.
@@ -140,7 +143,8 @@
 /**
  * Value to use for seeing when something goes wrong (in pixels).
  * Should be larger than 10 pixels, so RCS thinks seeing is "bad".
- * RJS wants really large value so archive searches can differentiate between real bad seeing and failed reductions.
+ * RJS wants really large value so archive searches can differentiate between 
+ * real bad seeing and failed reductions.
  */
 #define MAX_N_FWHM            (11)               /* deliberately chosen to be odd */
 #define MAX_N_FWHM_MID        (5)                /* median for 11 items           */
@@ -216,7 +220,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.1.1 2008-06-03 12:44:21 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.1.2 2008-06-03 14:06:28 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -284,9 +288,11 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2);
 |_| \_|\___| \_/\_/  
                      
 
-New version of Object_List_Get with all the experimental calculations and extra
-arguments intact. For backwards compatibility, the original Object_List_Get function
-remains as a wrapper to this one.
+New version of Object_List_Get. This version is called by object_test and contains
+all the experimental calculations and extra arguments for diagnostics. 
+
+For backwards compatibility with the working version of object, the original
+Object_List_Get function remains.
 
 */
 
@@ -344,24 +350,21 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
   Object_Error_Number = 0;
 #ifdef MEMORYCHECK
-  if(first_object == NULL)
-    {
-      Object_Error_Number = 2;
-      sprintf(Object_Error_String,"Object_List_Get:first_object was NULL.");
-      return FALSE;
-    }
-  if(sflag == NULL)
-    {
-      Object_Error_Number = 4;
-      sprintf(Object_Error_String,"Object_List_Get:sflag was NULL.");
-      return FALSE;
-    }
-  if(seeing == NULL)
-    {
-      Object_Error_Number = 5;
-      sprintf(Object_Error_String,"Object_List_Get:seeing was NULL.");
-      return FALSE;
-    }
+  if(first_object == NULL){
+    Object_Error_Number = 2;
+    sprintf(Object_Error_String,"Object_List_Get:first_object was NULL.");
+    return FALSE;
+  }
+  if(sflag == NULL){
+    Object_Error_Number = 4;
+    sprintf(Object_Error_String,"Object_List_Get:sflag was NULL.");
+    return FALSE;
+  }
+  if(seeing == NULL){
+    Object_Error_Number = 5;
+    sprintf(Object_Error_String,"Object_List_Get:seeing was NULL.");
+    return FALSE;
+  }
 #endif
   /* ensure top of list is set to NULL - assume is has not been allocated. */
   (*first_object) = NULL;
@@ -369,24 +372,30 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Searching for objects.");
 #endif
 
-  for(y=0;y<naxis2;y++)
-    {
-      for(x=0;x<naxis1;x++)
-	{
+
+/*
+                 _   _                    _         _    
+ _ _ _  _ _ _   | |_| |_  _ _ _  _   _ __(_)_ _____| |___
+| '_| || | ' \  |  _| ' \| '_| || | | '_ \ \ \ / -_) (_-<
+|_|  \_,_|_||_|  \__|_||_|_|  \_,_| | .__/_/_\_\___|_/__/
+                                    |_|                  
+*/
+
+
+  for(y=0;y<naxis2;y++){
+      for(x=0;x<naxis1;x++){
 #if LOGGING > 9
 	  Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get:searching pixel %d,%d.",x,y);
 #endif
-	  if(image[(y*naxis1)+x] > thresh)
-	    {
+	  if(image[(y*naxis1)+x] > thresh){
 	      (*initial_count)++;
 	      w_object = (Object *) malloc(sizeof(Object));
 #ifdef MEMORYCHECK
-	      if(w_object == NULL)
-		{
-		  Object_Error_Number = 1;
-		  sprintf(Object_Error_String,"Object_List_Get:Failed to allocate w_object.");
-		  return FALSE;
-		}
+	      if(w_object == NULL){
+		Object_Error_Number = 1;
+		sprintf(Object_Error_String,"Object_List_Get:Failed to allocate w_object.");
+		return FALSE;
+	      }
 #endif
 #if LOGGING > 10
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:allocated w_object (%p).",
@@ -395,20 +404,18 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      w_object->nextobject=NULL;
 	      w_object->highpixel = NULL;
 	      w_object->last_hp = NULL;
-	      if((*first_object)==NULL)
-		{
-		  (*first_object) = w_object;
-		  last_object = w_object;
+	      if((*first_object)==NULL){
+		(*first_object) = w_object;
+		last_object = w_object;
 #if LOGGING > 10
-		  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
-				    "set first_object to (%p).",(*first_object));
+		Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
+				  "set first_object to (%p).",(*first_object));
 #endif
-		}
-	      else
-		{
-		  last_object->nextobject = w_object;
-		  last_object = w_object;
-		}
+	      }
+	      else{
+		last_object->nextobject = w_object;
+		last_object = w_object;
+	      }
 	      w_object->objnum = *initial_count;
 #if LOGGING > 3
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
@@ -421,35 +428,33 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      w_object->peak=0;
 	      w_object->numpix=0;
 	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh,image,
-						   w_object))
-		{
-		  /* diddly free previous objects */
-		  return FALSE;
-		}
-	    }/* end if threshold exceeded for image[x,y] */
-	}/* end for on x */
-    }/* end for on y */
+						   w_object)){
+		/* diddly free previous objects */
+		return FALSE;
+	      }
+	  }/* end if threshold exceeded for image[x,y] */
+      }/* end for on x */
+  }/* end for on y */
 #if LOGGING > 0
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",*initial_count);
 #endif
   /* have we got any objects in the frame? */
-  if(*initial_count == 0)
-    {
-      (*seeing) = DEFAULT_BAD_SEEING;
-      (*sflag) = 1; /* the seeing was fudged. */
-      (*first_object) = NULL;
-      Object_Error_Number = 6;
-      sprintf(Object_Error_String,"Object_List_Get:No objects found.");
-      Object_Warning();
-      /* We used to return FALSE (error) here.
-      ** But there are cases where it is OK to have no objects - e.g. Moon images.
-      ** We want a fake seeing to be written to the FITS headers,
-      ** So we generate a warning message and return TRUE.
-      ** Note this means any program using Object_List_Get must be able to cope with
-      ** a NULL object list.
-      */
-      return TRUE;
-    }
+  if(*initial_count == 0){
+    (*seeing) = DEFAULT_BAD_SEEING;
+    (*sflag) = 1; /* the seeing was fudged. */
+    (*first_object) = NULL;
+    Object_Error_Number = 6;
+    sprintf(Object_Error_String,"Object_List_Get:No objects found.");
+    Object_Warning();
+    /* We used to return FALSE (error) here.
+    ** But there are cases where it is OK to have no objects - e.g. Moon images.
+    ** We want a fake seeing to be written to the FITS headers,
+    ** So we generate a warning message and return TRUE.
+    ** Note this means any program using Object_List_Get must be able to cope with
+    ** a NULL object list.
+    */
+    return TRUE;
+  }
 
 
 
@@ -492,16 +497,15 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     }
   }
   
-  if(w_object == NULL)
-    {
-      (*seeing) = DEFAULT_BAD_SEEING;
-      (*sflag) = 1;                       /* the seeing was fudged. */
-      (*first_object) = NULL;
-      Object_Error_Number = 7;
-      sprintf(Object_Error_String,"Object_List_Get:All objects were too small.");
-      Object_Warning();
-                                           /* We used to return FALSE (error) here.
-					   ** But it is OK to have all objects too small.
+  if(w_object == NULL){
+    (*seeing) = DEFAULT_BAD_SEEING;
+    (*sflag) = 1;                       /* the seeing was fudged. */
+    (*first_object) = NULL;
+    Object_Error_Number = 7;
+    sprintf(Object_Error_String,"Object_List_Get:All objects were too small.");
+    Object_Warning();
+    /* We used to return FALSE (error) here.
+    ** But it is OK to have all objects too small.
 					   ** We want  a fake seeing to be written to the FITS headers,
 					   ** So we generate a warning message and return TRUE.
 					   ** Note this means any program using Object_List_Get must be able to cope with
@@ -539,11 +543,10 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* go through rest of object list, deleting objects with numpix < npix */
   /* ------------------------------------------------------------------- */
 
-  while(w_object != NULL)
-    {
-      next_object=w_object->nextobject;         /* take copy of next object to go to */
-      if(w_object->numpix < npix)
-	{
+  while(w_object != NULL){
+    next_object=w_object->nextobject;         /* take copy of next object to go to */
+    if(w_object->numpix < npix)
+      {
 
 
 #if LOGGING > 5
@@ -554,48 +557,23 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 	  Object_Free(&w_object);
 	}
-      else
-	{
-	  (*size_count)++;
-	  last_object->nextobject = w_object;   /* tell last object this is its next object */
-	  w_object->objnum = *size_count;       /* set objects number */
-	  last_object = w_object;               /* set the last object in the list to be this object */
+    else {
+      (*size_count)++;
+      last_object->nextobject = w_object;   /* tell last object this is its next object */
+      w_object->objnum = *size_count;       /* set objects number */
+      last_object = w_object;               /* set the last object in the list to be this object */
 
 
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(2).",
-			    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
+      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(2).",
+			w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
 
 
-	}
-      w_object = next_object;                   /* change to next object */
     }
+    w_object = next_object;                   /* change to next object */
+  }
   last_object->nextobject=NULL;
-
-
-
-
-
-
-
-
-  /* -------------------------------- */
-  /* Add 1 to each object's xpos,ypos */
-  /* -------------------------------- */
-/*   w_object = (*first_object); */
-/*   while(w_object != NULL){ */
-/*     w_object->xpos++; */
-/*     w_object->ypos++; */
-/*     w_object = w_object->nextobject;		 */
-/*   } */
-
-
-
-
-
-
-
 
 
 
@@ -603,18 +581,16 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* -------------------------------------------------- */
 #if LOGGING > 5
   w_object = (*first_object);
-  while(w_object != NULL)
-  {
+  while(w_object != NULL){
     Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels for object %d at %.2f,%.2f(%d).",
 		      w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
     curpix = w_object->highpixel;
-    while(curpix != NULL)
-      {
-	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels:object:%d pixel %d,%d value %.2f.",
-		      w_object->objnum,curpix->x,curpix->y,curpix->value);
-	 curpix = curpix->next_pixel;           /* goto next pixel */
-      }
-      w_object = w_object->nextobject;	        /* goto next object */	
+    while(curpix != NULL){
+      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels:object:%d pixel %d,%d value %.2f.",
+			w_object->objnum,curpix->x,curpix->y,curpix->value);
+      curpix = curpix->next_pixel;           /* goto next pixel */
+    }
+    w_object = w_object->nextobject;	        /* goto next object */	
   }
 #endif
 
@@ -642,12 +618,11 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
   /* run through list of objects */
   /* --------------------------- */
-  while(w_object != NULL)
-    {
+  while(w_object != NULL){
 
 #if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
-			w_object->xpos,w_object->ypos);
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
+		      w_object->xpos,w_object->ypos);
 #endif
 
 
@@ -664,24 +639,22 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
       /* if object stellar, add its FWHM to list of FWHMs */
       /* ------------------------------------------------ */
-      if(is_stellar)
-	{
-	  if(fwhm_list == NULL)
-	    fwhm_list = (float*)malloc(sizeof(float));
-	  else
-	    fwhm_list = (float*)realloc(fwhm_list,((*stellar_count)+1)*sizeof(float));
+      if(is_stellar){
+	if(fwhm_list == NULL)
+	  fwhm_list = (float*)malloc(sizeof(float));
+	else
+	  fwhm_list = (float*)realloc(fwhm_list,((*stellar_count)+1)*sizeof(float));
 #ifdef MEMORYCHECK
-	  if(fwhm_list == NULL)
-	    {
-	      Object_Error_Number = 8;
-	      sprintf(Object_Error_String,"Object_List_Get:Failed to allocate FWHM list(%d).",
-		      *stellar_count);
-	      return FALSE;
-	    }
-#endif
-	  fwhm_list[(*stellar_count)] = fwhm;
-	  (*stellar_count)++;
+	if(fwhm_list == NULL){
+	  Object_Error_Number = 8;
+	  sprintf(Object_Error_String,"Object_List_Get:Failed to allocate FWHM list(%d).",
+		  *stellar_count);
+	  return FALSE;
 	}
+#endif
+	fwhm_list[(*stellar_count)] = fwhm;
+	(*stellar_count)++;
+      }
       w_object = w_object->nextobject;		
     }
 
@@ -964,6 +937,20 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		    Object **first_object,int *sflag,float *seeing)
      /* int *initial_count, int *size_count, int *stellar_count, int *fwhm_lt_dia_count) */
 {
+
+  /* Object Counters - these are NOT arguments to this version of Object_List_Get */
+  int initial_count;
+  int size_count; 
+  int stellar_count;
+  int fwhm_lt_dia_count;
+
+  /* Initialise object counters */
+  initial_count = 0;               /* initial count of all objects */
+  size_count = 0;                  /* objects bigger than size limit (currently 8 pixels) */
+  stellar_count = 0;               /* objects with ellipticity below limit */
+  fwhm_lt_dia_count = 0;           /* objects where fwhm < diameter (calculated from size) */
+
+
   Object *w_object = NULL;
   Object *last_object = NULL;
   Object *next_object = NULL;
@@ -983,19 +970,6 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
-  /* Object Counters - these are NOT arguments to this version of Object_List_Get */
-  int initial_count;
-  int size_count; 
-  int stellar_count;
-  int fwhm_lt_dia_count;
-
-  /* Initialise object counters */
-  initial_count = 0;               /* initial count of all objects */
-  size_count = 0;                  /* objects bigger than size limit (currently 8 pixels) */
-  stellar_count = 0;               /* objects with ellipticity below limit */
-  fwhm_lt_dia_count = 0;           /* objects where fwhm < diameter (calculated from size) */
-
-  /* Note therefore that: initial_count > size_count > stellar_count > fwhm_lt_dia_count */
 
 
 
@@ -2869,6 +2843,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.1.1  2008/06/03 12:44:21  eng
+** Branch-off to test cookie-cutter ("CC") approach.
+**
 ** Revision 1.12  2008/05/29 22:26:09  eng
 ** Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
 ** THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.

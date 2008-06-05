@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.1 2008-06-03 14:25:48 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.2 2008-06-05 13:56:51 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,20 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.1 $
+ * @version $Revision: 1.12.2.2 $
  */
 
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.1  2008/06/03 14:25:48  eng
+  Another branch-off from 1.12, this time to persue the concept of just
+  using two thresholds; one high-sigma to use when detecting objects,
+  the other low-sigma to use when getting connected pixels. This way we
+  get well-sampled objects out to the "wings", but only for bright objects, not
+  wasting time doing it for every object a low-sigma value above the median.
+
   Revision 1.12  2008/05/29 22:26:09  eng
   Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
   THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.
@@ -216,7 +223,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.1 2008-06-03 14:25:48 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.2 2008-06-05 13:56:51 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -284,10 +291,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2);
 |_| \_|\___| \_/\_/  
 
 
-This version expects TWO thresholds; one high-sigma to use when detecting objects,
-and the other low-sigma to use when getting connected pixels. This way we get well
-sampled objects out to the "wings", but only for bright objects, and we don't waste
-time doing this for every object 1-sig above median.
+This version expects TWO thresholds (thresh1, thresh2); one high-sigma to use when
+detecting objects, and the other low-sigma to use when getting connected pixels.
+This way we get well sampled objects out to the "wings", but only for bright objects,
+and we don't waste time doing this for every object 1-sig above median.
 
                      
 */
@@ -312,9 +319,9 @@ time doing this for every object 1-sig above median.
  * @see #Object_Free
  * @see #Object_Calculate_FWHM
  */
-int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,float thresh,int npix,
-		    Object **first_object,int *sflag,float *seeing,
-		    int *initial_count, int *size_count, int *stellar_count, int *fwhm_lt_dia_count)
+int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,float thresh1,float thresh2,
+			int npix,Object **first_object,int *sflag,float *seeing,
+			int *initial_count, int *size_count, int *stellar_count, int *fwhm_lt_dia_count)
 {
   Object *w_object = NULL;
   Object *last_object = NULL;
@@ -345,6 +352,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
   Object_Error_Number = 0;
+
+
 #ifdef MEMORYCHECK
   if(first_object == NULL)
     {
@@ -365,23 +374,49 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       return FALSE;
     }
 #endif
-  /* ensure top of list is set to NULL - assume is has not been allocated. */
+
+
+  /* ensure top of list is set to NULL - assume it has not been allocated. */
   (*first_object) = NULL;
+
+
+
+/*
+                     _       __               _     _        _      
+ ___ ___ __ _ _ _ __| |_    / _|___ _ _   ___| |__ (_)___ __| |_ ___
+(_-</ -_) _` | '_/ _| ' \  |  _/ _ \ '_| / _ \ '_ \| / -_) _|  _(_-<
+/__/\___\__,_|_| \__|_||_| |_| \___/_|   \___/_.__// \___\__|\__/__/
+                                                 |__/               
+*/
+
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Searching for objects.");
 #endif
+
+
+  /* ---------------------- */
+  /* RUN THROUGH ALL PIXELS */
+  /* ---------------------- */
 
   for(y=0;y<naxis2;y++)
     {
       for(x=0;x<naxis1;x++)
 	{
+
 #if LOGGING > 9
 	  Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get:searching pixel %d,%d.",x,y);
 #endif
-	  if(image[(y*naxis1)+x] > thresh)
+
+	  /* ---------------------------- */
+	  /* IF PIXEL ABOVE THRESHOLD -1- */
+	  /* ---------------------------- */
+    
+	  if(image[(y*naxis1)+x] > thresh1)  
 	    {
 	      (*initial_count)++;
 	      w_object = (Object *) malloc(sizeof(Object));
+
+
 #ifdef MEMORYCHECK
 	      if(w_object == NULL)
 		{
@@ -394,6 +429,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:allocated w_object (%p).",
 				w_object);
 #endif
+
+
 	      w_object->nextobject=NULL;
 	      w_object->highpixel = NULL;
 	      w_object->last_hp = NULL;
@@ -401,10 +438,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		{
 		  (*first_object) = w_object;
 		  last_object = w_object;
+
 #if LOGGING > 10
 		  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
 				    "set first_object to (%p).",(*first_object));
 #endif
+
 		}
 	      else
 		{
@@ -416,13 +455,19 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
 				"found start of object at %d,%d.",x,y);
 #endif
+
+
+	      /* -------------------------------------------- */
+	      /* GET ALL CONNECTED PIXELS ABOVE THRESHOLD -2- */
+	      /* -------------------------------------------- */
+	      
 	      /* initialise stats */
 	      w_object->total=0;
 	      w_object->xpos=0;
 	      w_object->ypos=0;
 	      w_object->peak=0;
 	      w_object->numpix=0;
-	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh,image,
+	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh2,image,
 						   w_object))
 		{
 		  /* diddly free previous objects */
@@ -434,7 +479,16 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",*initial_count);
 #endif
-  /* have we got any objects in the frame? */
+
+
+
+  /*
+     _  __                  _     _        _      
+    (_)/ _|  _ _  ___   ___| |__ (_)___ __| |_ ___
+    | |  _| | ' \/ _ \ / _ \ '_ \| / -_) _|  _(_-<
+    |_|_|   |_||_\___/ \___/_.__// \___\__|\__/__/
+                               |__/               
+  */
   if(*initial_count == 0)
     {
       (*seeing) = DEFAULT_BAD_SEEING;
@@ -454,24 +508,26 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     }
 
 
+  /*
+                                               _ _       _     _        _      
+     _ _ ___ _ __  _____ _____   ____ __  __ _| | |  ___| |__ (_)___ __| |_ ___
+    | '_/ -_) '  \/ _ \ V / -_) (_-< '  \/ _` | | | / _ \ '_ \| / -_) _|  _(_-<
+    |_| \___|_|_|_\___/\_/\___| /__/_|_|_\__,_|_|_| \___/_.__// \___\__|\__/__/
+                                                            |__/               
 
-  /* ---------------------------------- */
-  /* REMOVE TOO-SMALL OBJECTS           */
-  /*                                    */
-  /* go through list of objects,        */
-  /* get rid of any with less than npix */
-  /* ---------------------------------- */
+    go through list of objects, get rid of any with less than npix
 
+  */
 
 #if LOGGING > 0 
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding useful objects.");
 #endif
 
 
-
-  /* if first object too small, delete it */
   /* ------------------------------------ */
-
+  /* IF FIRST OBJECT TOO SMALL, DELETE IT */
+  /* ------------------------------------ */
+  
   w_object = (*first_object);
   done = FALSE;
   while(done == FALSE){
@@ -513,7 +569,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     }
 
 
-  /* set new first object */
+  /* -------------------- */
+  /* SET NEW FIRST OBJECT */
   /* -------------------- */
 
 #if LOGGING > 10
@@ -538,7 +595,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   done = FALSE;
 
 
-  /* go through rest of object list, deleting objects with numpix < npix */
+  /* ------------------------------------------------------------------- */
+  /* GO THROUGH REST OF OBJECT LIST, DELETING OBJECTS WITH NUMPIX < NPIX */
   /* ------------------------------------------------------------------- */
 
   while(w_object != NULL)
@@ -577,32 +635,10 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-
-
-
-
-
-  /* -------------------------------- */
-  /* Add 1 to each object's xpos,ypos */
-  /* -------------------------------- */
-/*   w_object = (*first_object); */
-/*   while(w_object != NULL){ */
-/*     w_object->xpos++; */
-/*     w_object->ypos++; */
-/*     w_object = w_object->nextobject;		 */
-/*   } */
-
-
-
-
-
-
-
-
-
-
-  /* extra debug - list connected pixels in all objects */
   /* -------------------------------------------------- */
+  /* EXTRA DEBUG - LIST CONNECTED PIXELS IN ALL OBJECTS */
+  /* -------------------------------------------------- */
+
 #if LOGGING > 5
   w_object = (*first_object);
   while(w_object != NULL)
@@ -622,19 +658,29 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-
-  /* --------------------------- */
-  /* CREATE LIST OF OBJECT FWHMS */
-  /* --------------------------- */
+  /*
+                     _         _ _    _          __       _     _        _   
+     __ _ _ ___ __ _| |_ ___  | (_)__| |_   ___ / _|  ___| |__ (_)___ __| |_ 
+    / _| '_/ -_) _` |  _/ -_) | | (_-<  _| / _ \  _| / _ \ '_ \| / -_) _|  _|
+    \__|_| \___\__,_|\__\___| |_|_/__/\__| \___/_|   \___/_.__// \___\__|\__|
+                                                             |__/            
+     _____      ___  _ __  __    
+    | __\ \    / / || |  \/  |___
+    | _| \ \/\/ /| __ | |\/| (_-<
+    |_|   \_/\_/ |_||_|_|  |_/__/
+                             
+  */
   
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding FWHM of objects.");
 #endif
 
 
-  /* set first object */
-  /* ---------------- */  
+  /* ---------------- */
+  /* SET FIRST OBJECT */
+  /* ---------------- */
   w_object = (*first_object);
+
 
 #if LOGGING > 10
   Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:w_object (%p) set from first_object (%p).",
@@ -642,7 +688,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #endif
 
 
-  /* run through list of objects */
+  /* --------------------------- */
+  /* RUN THROUGH LIST OF OBJECTS */
   /* --------------------------- */
   while(w_object != NULL)
     {
@@ -656,6 +703,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       /* calculate FWHM of object */
       /* ------------------------ */
       Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
+
+
+
 
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:"
@@ -2492,6 +2542,9 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   double FWHM;                    /* FWHM */
 
 
+  int Do_Moffat = FALSE;
+
+  
 
 
   
@@ -2528,6 +2581,10 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     theta=atan2((2*xy2nd),(x2nd-y2nd));
   else
     theta=0;
+
+
+
+
   
   diff=major-minor;
   ellip = (major-minor)/major;
@@ -2545,6 +2602,9 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
       sprintf(stellarflag,"NON-stellar");
     }
 
+
+
+
   /* extra debug - show ellipticity of object */
   /* ---------------------------------------- */
 #if LOGGING > 5
@@ -2556,6 +2616,16 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 		    stellarflag);
 #endif
   
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2584,83 +2654,152 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   */
   else {
 
-
     /*
-      ------------------------------
-      create optimisation r,z arrays
-      ------------------------------
+                  __  __      _   
+       _ __  ___ / _|/ _|__ _| |_ 
+      | '  \/ _ \  _|  _/ _` |  _|
+      |_|_|_\___/_| |_| \__,_|\__|
+                            
     */
-    pixr = (double *)malloc(sizeof(double) * w_object->numpix);
-    pixz = (double *)malloc(sizeof(double) * w_object->numpix);
-
-
-    /*
-      ---------------------------------------------
-      create radial profile of object in r,z arrays
-      ---------------------------------------------
-    */
-    ipix = 0;
-    curpix = w_object->highpixel;
-    while(curpix !=NULL){
-      dx = curpix->x - w_object->xpos;
-      dy = curpix->y - w_object->ypos;
-      pixr[ipix] = sqrt( dx*dx + dy*dy );
-      pixz[ipix] = curpix->value;
-
-/*       fprintf(stdout,"%d:%d\t%f,%f,%f\t%f,%f\n", */
-/* 	     w_object->objnum,ipix, */
-/* 	     dx,dy,curpix->value, */
-/* 	     pixr[ipix],pixz[ipix]); */
-
-      ipix++;
-      curpix=curpix->next_pixel;
-    }
-
-
-    /*
-      --------------------------------
-      first guess at Moffat parameters
-      --------------------------------
-    */
-    params[0] = findMax(pixz, w_object->numpix);
-    params[1] = 4.9;
-    params[2] = 3.0;
-
-
-    /*
-      --------------------------
-      optimise Moffat parameters
-      --------------------------
-    */
-    for(m = 0; m < 1; m++) {
-      optimize(pixr, pixz, w_object->numpix, params);
-    }
-
-
-    /*
-      --------------
-      calculate FWHM
-      --------------
-    */
-    k = params[0]; /* k is z(r=0) */
-    a = params[1];
-    b = params[2];
-    FWHM = 2.0 * a * sqrt( pow(2.0,(1.0/b)) -1.0 );
-
-    w_object->fwhmx = FWHM;
-    w_object->fwhmy = FWHM;
-    (*fwhm) = FWHM;
-
-    w_object->moffat_k = k;    /*     added     */
-    w_object->moffat_a = a;    /*      for      */
-    w_object->moffat_b = b;    /*  diagnostics  */
+    if (Do_Moffat){
     
-    if (pixr != NULL)
-      free(pixr);
-    if (pixz != NULL)
-      free(pixz);
+      /*
+	------------------------------
+	create optimisation r,z arrays
+	------------------------------
+      */
+      pixr = (double *)malloc(sizeof(double) * w_object->numpix);
+      pixz = (double *)malloc(sizeof(double) * w_object->numpix);
 
-  } /* end of FWHM IF STELLAR */
+
+      /*
+	---------------------------------------------
+	create radial profile of object in r,z arrays
+	---------------------------------------------
+      */
+      ipix = 0;
+      curpix = w_object->highpixel;
+      while(curpix !=NULL){
+	dx = curpix->x - w_object->xpos;
+	dy = curpix->y - w_object->ypos;
+	pixr[ipix] = sqrt( dx*dx + dy*dy );
+	pixz[ipix] = curpix->value;
+
+	/*       fprintf(stdout,"%d:%d\t%f,%f,%f\t%f,%f\n", */
+	/* 	     w_object->objnum,ipix, */
+	/* 	     dx,dy,curpix->value, */
+	/* 	     pixr[ipix],pixz[ipix]); */
+
+	ipix++;
+	curpix=curpix->next_pixel;
+      }
+
+
+      /*
+	--------------------------------
+	first guess at Moffat parameters
+	--------------------------------
+      */
+      params[0] = findMax(pixz, w_object->numpix);
+      params[1] = 4.9;
+      params[2] = 3.0;
+
+
+      /*
+	--------------------------
+	optimise Moffat parameters
+	--------------------------
+      */
+      for(m = 0; m < 1; m++) {
+	optimize(pixr, pixz, w_object->numpix, params);
+      }
+
+
+      /*
+	--------------
+	calculate FWHM
+	--------------
+      */
+      k = params[0]; /* k is z(r=0) */
+      a = params[1];
+      b = params[2];
+      FWHM = 2.0 * a * sqrt( pow(2.0,(1.0/b)) -1.0 );
+
+      w_object->fwhmx = FWHM;
+      w_object->fwhmy = FWHM;
+      (*fwhm) = FWHM;
+
+      w_object->moffat_k = k;    /*     added     */
+      w_object->moffat_a = a;    /*      for      */
+      w_object->moffat_b = b;    /*  diagnostics  */
+    
+      if (pixr != NULL)
+	free(pixr);
+      if (pixz != NULL)
+	free(pixz);
+
+    } /* end of Moffat */
+
+    /*
+        ___  _   _            
+       / _ \| |_| |_  ___ _ _ 
+      | (_) |  _| ' \/ -_) '_|
+       \___/ \__|_||_\___|_|  
+                        
+    */
+
+    else {  /* do other thing */
+      
+      /* Calculate 2nd moment - straight out of SExtractor manual */
+      /* 2nd moment == variance */
+      
+      float xpos_pix;
+      float ypos_pix;
+      float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I;
+      float x,y,I;
+      float Var_X, Var_Y, Var_XY;
+      float Sigma_X, Sigma_Y, FWHMx, FWHMy;
+
+
+      xpos_pix = floor(w_object->xpos + 0.5);  /* nearest pixel to xpos */
+      ypos_pix = floor(w_object->ypos + 0.5);  /* nearest pixel to ypos */      
+      curpix = w_object->highpixel;            /* set current pixel to object's first pixel */      
+
+      Sum_Ix2 = 0.0;                           /* initialise sum of (I * x^2) */
+      Sum_Iy2 = 0.0;                           /* initialise sum of (I * y^2) */
+      Sum_Ixy = 0.0;                           /* initialise sum of (I * x * y) */
+      Sum_I = 0.0;                             /* initialise sum of I */
+
+      while(curpix != NULL){                   /* start looping through pixels in object */
+
+	x = curpix->x;                         /* set x */
+	y = curpix->y;                         /* set y */
+	I = curpix->value;                     /* set intensity (pixel value) */
+
+	Sum_Ix2 += (I * x * x);                /* increment Sum_Ix2 */
+	Sum_Iy2 += (I * y * y);                /* increment Sum_Iy2 */
+	Sum_Ixy += (I * x * y);                /* increment Sum_Ixy */
+	Sum_I += I;                            /* increment Sum_I */
+
+	curpix=curpix->next_pixel;             /* next pixel in object */
+      }
+      
+      Var_X = (Sum_Ix2 / Sum_I) - (w_object->xpos * w_object->xpos);    /* 2nd moment (x) */
+      Var_Y = (Sum_Iy2 / Sum_I) - (w_object->ypos * w_object->ypos);    /* 2nd moment (y) */
+      Var_XY = (Sum_Ixy / Sum_I) - (w_object->xpos * w_object->ypos);   /* 2nd moment (xy) */
+
+      Sigma_X = sqrt(Var_X);
+      Sigma_Y = sqrt(Var_Y);
+      
+      FWHMx = 2.3548 * Sigma_X;
+      FWHMy = 2.3548 * Sigma_Y;
+      
+      w_object->fwhmx = FWHMx;
+      w_object->fwhmx = FWHMy;
+
+    } /* end of doing thing other than moffat */
+
+  } /* end of CALCULATE FWHM IF OBJECT IS STELLAR */
 
 }
 
@@ -2871,6 +3010,13 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.1  2008/06/03 14:25:48  eng
+** Another branch-off from 1.12, this time to persue the concept of just
+** using two thresholds; one high-sigma to use when detecting objects,
+** the other low-sigma to use when getting connected pixels. This way we
+** get well-sampled objects out to the "wings", but only for bright objects, not
+** wasting time doing it for every object a low-sigma value above the median.
+**
 ** Revision 1.12  2008/05/29 22:26:09  eng
 ** Checked in by RJS to enable JMM to roll back on Monday any changes he disapproves of.
 ** THis is just after Jon has reverted teh calling parameters to the old 9 parameter format.

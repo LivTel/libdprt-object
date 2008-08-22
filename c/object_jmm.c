@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.2 2008-06-05 13:56:51 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.3 2008-08-22 15:58:17 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,13 +31,14 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.2 $
+ * @version $Revision: 1.12.2.3 $
  */
-
-
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.2  2008/06/05 13:56:51  eng
+  *** empty log message ***
+
   Revision 1.12.2.1  2008/06/03 14:25:48  eng
   Another branch-off from 1.12, this time to persue the concept of just
   using two thresholds; one high-sigma to use when detecting objects,
@@ -157,8 +158,8 @@
 #define DEFAULT_SEEING_TOOSMALL    (977.0)       /* less than 0.01 pixels                      */
 #define DEFAULT_SEEING_BADFIT      (966.0)       /* fitted moffat curve fwhm > object diameter */
 
-#define STELLAR_ELLIP_LIMIT          (0.2)         /* upper limit of ellipticity for an object to be */
-                                                 /* classed as 'stellar' */
+#define STELLAR_ELLIP_LIMIT          (0.3)         /* upper limit of ellipticity for an object to be */
+                                                   /* classed as 'stellar' */
 
 /* ------------------------------------------------------- */
 /* structure declarations */
@@ -223,7 +224,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.2 2008-06-05 13:56:51 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.3 2008-08-22 15:58:17 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -417,6 +418,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      w_object = (Object *) malloc(sizeof(Object));
 
 
+
+
 #ifdef MEMORYCHECK
 	      if(w_object == NULL)
 		{
@@ -431,6 +434,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #endif
 
 
+
+
 	      w_object->nextobject=NULL;
 	      w_object->highpixel = NULL;
 	      w_object->last_hp = NULL;
@@ -439,10 +444,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		  (*first_object) = w_object;
 		  last_object = w_object;
 
+
+
 #if LOGGING > 10
 		  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
 				    "set first_object to (%p).",(*first_object));
 #endif
+
+
 
 		}
 	      else
@@ -451,10 +460,16 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		  last_object = w_object;
 		}
 	      w_object->objnum = *initial_count;
+
+
+
+
 #if LOGGING > 3
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
 				"found start of object at %d,%d.",x,y);
 #endif
+
+
 
 
 	      /* -------------------------------------------- */
@@ -476,9 +491,15 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	    }/* end if threshold exceeded for image[x,y] */
 	}/* end for on x */
     }/* end for on y */
+
+
+
+
 #if LOGGING > 0
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",*initial_count);
 #endif
+
+
 
 
 
@@ -519,9 +540,13 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
   */
 
+
+
 #if LOGGING > 0 
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding useful objects.");
 #endif
+
+
 
 
   /* ------------------------------------ */
@@ -536,10 +561,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     else {                                   /* otherwise */
 
 
+
+
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(1) at %.2f,%.2f(%d).",
 			w_object->xpos,w_object->ypos,w_object->numpix);
 #endif 
+
+
 
 
       next_object = w_object->nextobject;    /* take copy of next object pointer */
@@ -556,7 +585,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       (*sflag) = 1;                       /* the seeing was fudged. */
       (*first_object) = NULL;
       Object_Error_Number = 7;
-      sprintf(Object_Error_String,"Object_List_Get:All objects were too small.");
+      sprintf(Object_Error_String,"Object_List_Get: All objects were too small.");
       Object_Warning();
                                            /* We used to return FALSE (error) here.
 					   ** But it is OK to have all objects too small.
@@ -573,10 +602,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* SET NEW FIRST OBJECT */
   /* -------------------- */
 
+
+
 #if LOGGING > 10
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:first_object (%p) set from w_object (%p).",
+  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: first_object (%p) set from w_object (%p).",
 		    (*first_object),w_object);
 #endif
+
+
 
 
   (*first_object) = w_object;
@@ -584,10 +617,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   last_object = (*first_object);
 
 
+
+
 #if LOGGING > 5
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(1).",
+  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: object %d at %.2f,%.2f(%d) is ok(1).",
 		    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
 
 
   w_object = (*first_object)->nextobject;
@@ -606,10 +643,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	{
 
 
+
+
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(2) at %.2f,%.2f(%d).",
+	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: deleting object(2) at %.2f,%.2f(%d).",
 			    w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
 
 
 	  Object_Free(&w_object);
@@ -622,10 +663,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	  last_object = w_object;               /* set the last object in the list to be this object */
 
 
+
+
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:object %d at %.2f,%.2f(%d) is ok(2).",
+	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: object %d at %.2f,%.2f(%d) is ok(2).",
 			    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
+
+
 
 
 	}
@@ -643,18 +688,20 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   w_object = (*first_object);
   while(w_object != NULL)
   {
-    Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels for object %d at %.2f,%.2f(%d).",
+    Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: Printing pixels for object %d at %.2f,%.2f(%d).",
 		      w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
     curpix = w_object->highpixel;
     while(curpix != NULL)
       {
-	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:Printing pixels:object:%d pixel %d,%d value %.2f.",
+	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: Printing pixels:object:%d pixel %d,%d value %.2f.",
 		      w_object->objnum,curpix->x,curpix->y,curpix->value);
 	 curpix = curpix->next_pixel;           /* goto next pixel */
       }
       w_object = w_object->nextobject;	        /* goto next object */	
   }
 #endif
+
+
 
 
 
@@ -672,7 +719,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   */
   
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding FWHM of objects.");
+  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Finding FWHM of objects.");
 #endif
 
 
@@ -683,7 +730,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 #if LOGGING > 10
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:w_object (%p) set from first_object (%p).",
+  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: w_object (%p) set from first_object (%p).",
 		    w_object,(*first_object));
 #endif
 
@@ -695,8 +742,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     {
 
 #if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
-			w_object->xpos,w_object->ypos);
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: Calculating FWHM for object (%d) at %.2f,%.2f.",
+			w_object->objnum,w_object->xpos,w_object->ypos);
 #endif
 
 
@@ -709,8 +756,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:"
-			"object at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
-			w_object->xpos,w_object->ypos,fwhm,is_stellar);
+			"object (%d) at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
+			w_object->objnum,w_object->xpos,w_object->ypos,fwhm,is_stellar);
 #endif
 
 
@@ -758,7 +805,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* If any fwhms at all */
   /* ------------------- */
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d\n", *stellar_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d", *stellar_count);
 #endif
 
   if(*stellar_count > 0) {
@@ -777,12 +824,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     /* fwhm_lt_dia_count = "fwhm-less-than-diameter-count" */
     /* --------------------------------------------------- */
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"         \tfwhm\tdia\n");
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"         \tfwhm\tdia");
 #endif
     w_object = (*first_object);                           /* set w_object to first obj in list */
     while(w_object != NULL){                              /* start running through all objects */
       obj_area = w_object->numpix;
-      obj_fwhm = w_object->fwhmx;	  
+      obj_fwhm = (w_object->fwhmx + w_object->fwhmy)/2.0;	  
       obj_dia = sqrt( 1.2732 * obj_area);                 /* pseudo-diameter. 1.2732 = 4/pi    */
       if (obj_fwhm < obj_dia){                            /* add object to array only if fwhm < dia... */
 	fwhmarray[*fwhm_lt_dia_count].numpix = obj_area;
@@ -793,14 +840,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	(*fwhm_lt_dia_count)++;                              /* ... and increment counter */
       }
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)\n",w_object->objnum,obj_fwhm,obj_dia,*fwhm_lt_dia_count);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,*fwhm_lt_dia_count);
 #endif
       w_object = w_object->nextobject;                    /* go to next object */		
     }
       
 
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects with FWHM < diameter: %d\n\n", *fwhm_lt_dia_count);
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects with FWHM < diameter: %d", *fwhm_lt_dia_count);
 #endif
 
 
@@ -818,20 +865,18 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif
 
       /* sort array (LARGEST FIRST) by 1st struct member (numpix) */
       qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_numpix);
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif     
       
       /* now they're sorted by size, if the number of objects is greater than the maximum
@@ -844,19 +889,18 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	fwhmarray_size = MAX_N_FWHM;
 	
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:");
 #endif
 
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f\n",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif
 	
 	/* find median */
@@ -868,18 +912,17 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       else {
 
 #if LOGGING > 0	
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:");
 #endif
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0	
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n---------\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n---------");
 	for (i=0;i<fwhmarray_size;i++)
 	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f\t%f\n",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
 #endif
 	
 	/* find median */
@@ -899,12 +942,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 #if LOGGING > 0	
       if ( fwhmarray_size % 2 == 0 ) /* if EVEN */
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d,%d] (%d,%d) %f\n",
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d,%d] (%d,%d) %f",
 	       lower_mid_posn,upper_mid_posn,
 	       fwhmarray[lower_mid_posn].objnum,fwhmarray[upper_mid_posn].objnum,
 	       median_fwhm);
       else /* if ODD */
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d] (%d) %f\n",mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d] (%d) %f",mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
 #endif
 
       /* Set seeing to median_fwhm */
@@ -1355,8 +1398,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
     {
 
 #if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:Calculating FWHM for object at %.2f,%.2f.",
-			w_object->xpos,w_object->ypos);
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: Calculating FWHM for object (%d) at %.2f,%.2f.",
+			w_object->objnum,w_object->xpos,w_object->ypos);
 #endif
 
 
@@ -1415,7 +1458,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* If any fwhms at all */
   /* ------------------- */
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d\n", stellar_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d", stellar_count);
 #endif
 
   if(stellar_count > 0) {
@@ -1434,12 +1477,12 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
     /* fwhm_lt_dia_count = "fwhm-less-than-diameter-count" */
     /* --------------------------------------------------- */
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"         \tfwhm\tdia\n");
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"         \tfwhm\tdia");
 #endif
     w_object = (*first_object);                           /* set w_object to first obj in list */
     while(w_object != NULL){                              /* start running through all objects */
       obj_area = w_object->numpix;
-      obj_fwhm = w_object->fwhmx;	  
+      obj_fwhm = (w_object->fwhmx + w_object->fwhmy)/2.0;	  
       obj_dia = sqrt( 1.2732 * obj_area);                 /* pseudo-diameter. 1.2732 = 4/pi    */
       if (obj_fwhm < obj_dia){                            /* add object to array only if fwhm < dia... */
 	fwhmarray[fwhm_lt_dia_count].numpix = obj_area;
@@ -1450,14 +1493,14 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	fwhm_lt_dia_count++;                              /* ... and increment counter */
       }
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)\n",w_object->objnum,obj_fwhm,obj_dia,fwhm_lt_dia_count);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,fwhm_lt_dia_count);
 #endif
       w_object = w_object->nextobject;                    /* go to next object */		
     }
       
 
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects with FWHM < diameter: %d\n\n", fwhm_lt_dia_count);
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects with FWHM < diameter: %d", fwhm_lt_dia_count);
 #endif
 
 
@@ -1475,20 +1518,18 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif
 
       /* sort array (LARGEST FIRST) by 1st struct member (numpix) */
       qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_numpix);
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------\n");
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\n",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"\n\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif     
       
       /* now they're sorted by size, if the number of objects is greater than the maximum
@@ -1501,15 +1542,15 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	fwhmarray_size = MAX_N_FWHM;
 	
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:");
 #endif
 
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f\n",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
@@ -1525,7 +1566,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       else {
 
 #if LOGGING > 0	
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:\n");
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:");
 #endif
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
@@ -2518,10 +2559,12 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
                                   /* object ellipticity */
                                   /* ------------------ */
+  float x2I=0,y2I=0,xy2I;         /* running total of offset^2 x intensity in x, y & xy */
   float x2nd=0,y2nd=0,xy2nd=0;    /* first and second order moments of the ellipse data */
-  float xoff=0,yoff=0;            /* offsets from the centre of the object determind by */
+  float xoff=0,yoff=0;            /* offsets from the centre of the object determined by */
                                   /*   the centroid curpix->x = spatial pixel values */
   float intensity=0;              /* intensity in each pixel corrected for background */
+  float SumI=0;                   /* scalar sum of pixel intensities */
   float aux=0,aux2=0;             /* auxiliary variable */
   float minor=0,major=0;          /* semi-minor and semi-major axes of the object ellipse */
   float theta;                    /* angle of the ellipse, measured from Naxis1 to semi-major */
@@ -2542,12 +2585,10 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   double FWHM;                    /* FWHM */
 
 
+/*   int Do_Moffat = TRUE; */
   int Do_Moffat = FALSE;
 
-  
-
-
-  
+ 
 
   /* --------------------------------------------- */
   /* CALCULATE OBJECT ELLIPTICITY (VIA 2ND MOMENT) */
@@ -2556,7 +2597,31 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   /* manual - see SUN109.1                         */
   /* --------------------------------------------- */
 
+  /*
+    2nd moment
+    ----------
+  */
   curpix = w_object->highpixel;
+
+  /* new code - doesn't work */
+/*   while(curpix !=NULL) */
+/*     { */
+/*       intensity=(curpix->value);  */
+/*       xoff=(w_object->xpos)-(curpix->x); */
+/*       yoff=(w_object->ypos)-(curpix->y); */
+/*       x2I  += xoff*xoff*intensity; */
+/*       y2I  += yoff*yoff*intensity; */
+/*       xy2I += xoff*yoff*intensity; */
+/*       SumI += intensity; */
+/*       curpix=curpix->next_pixel; */
+/*     } */
+/*   x2nd = x2I/SumI; */
+/*   y2nd = y2I/SumI; */
+/*   xy2nd = xy2I/SumI; */
+  /* new code ends */
+
+
+  /* original code from object.c in this block */
   while(curpix !=NULL)
     {
       intensity=(curpix->value);
@@ -2571,7 +2636,14 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   x2nd  /= aux;
   y2nd  /= aux;
   xy2nd /= aux;
+  /* original code ends */
 
+
+
+  /*
+    ellipse axes
+    ------------
+  */
   aux=0;
   aux=2*(x2nd+y2nd);
   aux2=2*(sqrt( ((x2nd-y2nd)*(x2nd-y2nd)) + 4*xy2nd*xy2nd ));
@@ -2583,50 +2655,48 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     theta=0;
 
 
-
-
-  
+  /*
+    ellipticity
+    -----------
+  */
   diff=major-minor;
   ellip = (major-minor)/major;
 
-  if (ellip <= STELLAR_ELLIP_LIMIT)
-    {
-      (*is_stellar) = TRUE;            /* object is STELLAR */
-      w_object->is_stellar = TRUE;
-      sprintf(stellarflag,"stellar");
-    }
-  else
-    {
-      (*is_stellar) = FALSE;           /* object is NONSTELLAR */
-      w_object->is_stellar = FALSE;
-      sprintf(stellarflag,"NON-stellar");
-    }
+/*   printf("DEBUG: Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\n", */
+/* 	 w_object->objnum, */
+/* 	 major,minor, */
+/* 	 ellip); */
 
 
-
-
-  /* extra debug - show ellipticity of object */
-  /* ---------------------------------------- */
 #if LOGGING > 5
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,
-		    "Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\t%s",
+  Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+		    "Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f",
 		    w_object->objnum,
 		    major,minor,
-		    ellip,
-		    stellarflag);
+		    ellip);
 #endif
-  
+ 
 
+  /*
+    stellar flag
+    ------------
+  */
+  if (ellip <= STELLAR_ELLIP_LIMIT){
+    (*is_stellar) = TRUE;            /* object is STELLAR */
+    w_object->is_stellar = TRUE;
+    sprintf(stellarflag,"stellar");
+  }
+  else {
+    (*is_stellar) = FALSE;           /* object is NONSTELLAR */
+    w_object->is_stellar = FALSE;
+    sprintf(stellarflag,"NON-stellar");
+  }
 
-
-
-
-
-
-
-
-
-
+#if LOGGING > 5
+  Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+		    "Object_Calculate_FWHM: object (%d) stellarflag %s, is_stellar [%d]",
+		    w_object->objnum,stellarflag,w_object->is_stellar);
+#endif
 
 
 
@@ -2636,32 +2706,50 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   /* CALCULATE FWHM */
   /* -------------- */
 
-  /* define default fwhms if meet rejection criteria */
-  /* ----------------------------------------------- */
-
-
+  /*
+    if nonstellar then FWHM => "nonstellar object" default
+    ------------------------------------------------------
+  */
   if (w_object->is_stellar == FALSE){
     w_object->fwhmx = DEFAULT_SEEING_NONSTELLAR;
     w_object->fwhmy = DEFAULT_SEEING_NONSTELLAR;
     (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
+#if LOGGING > 5
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+		      "Object_Calculate_FWHM: object (%d) is %s, setting FWHM to %f",
+		      w_object->objnum,stellarflag,DEFAULT_SEEING_NONSTELLAR);
+#endif
+    
   }
 
 
   /*
-    ---------------
-    FWHM IF STELLAR
-    ---------------
+    if stellar though, then calc fwhm
+    ---------------------------------
   */
   else {
 
+#if LOGGING > 5
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+		      "Object_Calculate_FWHM: object (%d) is %s",
+		      w_object->objnum,stellarflag);
+#endif
+    
+
     /*
-                  __  __      _   
-       _ __  ___ / _|/ _|__ _| |_ 
-      | '  \/ _ \  _|  _/ _` |  _|
-      |_|_|_\___/_| |_| \__,_|\__|
-                            
+      either fit moffat curve to radial profile
+      -----------------------------------------
     */
+
     if (Do_Moffat){
+
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: object (%d): doing Moffat MF",
+			w_object->objnum);
+#endif
+       
+
     
       /*
 	------------------------------
@@ -2740,64 +2828,82 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
     } /* end of Moffat */
 
-    /*
-        ___  _   _            
-       / _ \| |_| |_  ___ _ _ 
-      | (_) |  _| ' \/ -_) '_|
-       \___/ \__|_||_\___|_|  
-                        
-    */
 
-    else {  /* do other thing */
+    /*
+      or work out from second moment
+      ------------------------------
+    */
+ 
+    else {
+
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: object (%d): doing 2nd moment 2M",
+			w_object->objnum);
+#endif
       
-      /* Calculate 2nd moment - straight out of SExtractor manual */
-      /* 2nd moment == variance */
-      
-      float xpos_pix;
-      float ypos_pix;
-      float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I;
-      float x,y,I;
-      float Var_X, Var_Y, Var_XY;
+/*       float xpos_pix; */
+/*       float ypos_pix; */
+/*       float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I; */
+/*       float x,y,I; */
+/*       float Var_X, Var_Y, Var_XY; */
       float Sigma_X, Sigma_Y, FWHMx, FWHMy;
 
 
-      xpos_pix = floor(w_object->xpos + 0.5);  /* nearest pixel to xpos */
-      ypos_pix = floor(w_object->ypos + 0.5);  /* nearest pixel to ypos */      
-      curpix = w_object->highpixel;            /* set current pixel to object's first pixel */      
+/*       xpos_pix = floor(w_object->xpos + 0.5);  /\* nearest pixel to xpos *\/ */
+/*       ypos_pix = floor(w_object->ypos + 0.5);  /\* nearest pixel to ypos *\/       */
+/*       curpix = w_object->highpixel;            /\* set current pixel to object's first pixel *\/       */
 
-      Sum_Ix2 = 0.0;                           /* initialise sum of (I * x^2) */
-      Sum_Iy2 = 0.0;                           /* initialise sum of (I * y^2) */
-      Sum_Ixy = 0.0;                           /* initialise sum of (I * x * y) */
-      Sum_I = 0.0;                             /* initialise sum of I */
+/*       Sum_Ix2 = 0.0;                           /\* initialise sum of (I * x^2) *\/ */
+/*       Sum_Iy2 = 0.0;                           /\* initialise sum of (I * y^2) *\/ */
+/*       Sum_Ixy = 0.0;                           /\* initialise sum of (I * x * y) *\/ */
+/*       Sum_I = 0.0;                             /\* initialise sum of I *\/ */
 
-      while(curpix != NULL){                   /* start looping through pixels in object */
+/*       while(curpix != NULL){                   /\* start looping through pixels in object *\/ */
 
-	x = curpix->x;                         /* set x */
-	y = curpix->y;                         /* set y */
-	I = curpix->value;                     /* set intensity (pixel value) */
+/* 	x = curpix->x;                         /\* set x *\/ */
+/* 	y = curpix->y;                         /\* set y *\/ */
+/* 	I = curpix->value;                     /\* set intensity (pixel value) *\/ */
 
-	Sum_Ix2 += (I * x * x);                /* increment Sum_Ix2 */
-	Sum_Iy2 += (I * y * y);                /* increment Sum_Iy2 */
-	Sum_Ixy += (I * x * y);                /* increment Sum_Ixy */
-	Sum_I += I;                            /* increment Sum_I */
+/* 	Sum_Ix2 += (I * x * x);                /\* increment Sum_Ix2 *\/ */
+/* 	Sum_Iy2 += (I * y * y);                /\* increment Sum_Iy2 *\/ */
+/* 	Sum_Ixy += (I * x * y);                /\* increment Sum_Ixy *\/ */
+/* 	Sum_I += I;                            /\* increment Sum_I *\/ */
 
-	curpix=curpix->next_pixel;             /* next pixel in object */
-      }
+/* 	curpix=curpix->next_pixel;             /\* next pixel in object *\/ */
+/*       } */
       
-      Var_X = (Sum_Ix2 / Sum_I) - (w_object->xpos * w_object->xpos);    /* 2nd moment (x) */
-      Var_Y = (Sum_Iy2 / Sum_I) - (w_object->ypos * w_object->ypos);    /* 2nd moment (y) */
-      Var_XY = (Sum_Ixy / Sum_I) - (w_object->xpos * w_object->ypos);   /* 2nd moment (xy) */
+/*       Var_X = (Sum_Ix2 / Sum_I) - (w_object->xpos * w_object->xpos);    /\* 2nd moment (x) *\/ */
+/*       Var_Y = (Sum_Iy2 / Sum_I) - (w_object->ypos * w_object->ypos);    /\* 2nd moment (y) *\/ */
+/*       Var_XY = (Sum_Ixy / Sum_I) - (w_object->xpos * w_object->ypos);   /\* 2nd moment (xy) *\/ */
 
-      Sigma_X = sqrt(Var_X);
-      Sigma_Y = sqrt(Var_Y);
+/*       Sigma_X = sqrt(Var_X); */
+/*       Sigma_Y = sqrt(Var_Y); */
       
-      FWHMx = 2.3548 * Sigma_X;
-      FWHMy = 2.3548 * Sigma_Y;
+/*       FWHMx = 2.3548 * Sigma_X; */
+/*       FWHMy = 2.3548 * Sigma_Y; */
+      
+/*       w_object->fwhmx = FWHMx; */
+/*       w_object->fwhmx = FWHMy; */
+
+
+      FWHMx = 2.3548 * sqrt(x2nd);
+      FWHMy = 2.3548 * sqrt(y2nd);
       
       w_object->fwhmx = FWHMx;
-      w_object->fwhmx = FWHMy;
+      w_object->fwhmy = FWHMy;
+      (*fwhm) = (w_object->fwhmx + w_object->fwhmy)/2;
+
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: object (%d): 2M: FWHMx,y = %.2f, %.2f",
+			w_object->objnum,w_object->fwhmx,w_object->fwhmy);
+#endif
 
     } /* end of doing thing other than moffat */
+    
+/*     printf("DEBUG object (%d): 2M: Size = %d FWHMxy = %.2f %.2f\n", */
+/* 	   w_object->objnum,w_object->numpix,w_object->fwhmx,w_object->fwhmy); */
 
   } /* end of CALCULATE FWHM IF OBJECT IS STELLAR */
 
@@ -3010,6 +3116,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.2  2008/06/05 13:56:51  eng
+** *** empty log message ***
+**
 ** Revision 1.12.2.1  2008/06/03 14:25:48  eng
 ** Another branch-off from 1.12, this time to persue the concept of just
 ** using two thresholds; one high-sigma to use when detecting objects,

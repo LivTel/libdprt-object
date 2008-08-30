@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.3 2008-08-22 15:58:17 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.4 2008-08-30 15:37:21 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,11 +31,25 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.3 $
+ * @version $Revision: 1.12.2.4 $
  */
+
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.3  2008/08/22 15:58:17  eng
+  Working version of two-threshold ("TT") algorithm. Emphasis on applying the TT to the old
+  2nd-moment ("2M")method of calculating FWHM again. Why? Because the Moffatt-fitting algorithm
+  barfs out during a focus run, which admittedly may be a coding problem rather than
+  fundamental method problem, AND it is very slow, which again could just be down to
+  breadboard (not efficinet) coding practices. Looked again at the 2m version because
+  it looked more robust and a lot faster. However this version still produces wrong
+  FWHMs - a fault which might be down to the maths used for the 1st & 2nd moment calc.
+  Therefore, going to try coding the 1st/2nd moments again from scratch rather than try to
+  second-guess the original existing code. 1st moment will still be calculated in
+  Object_List_Get_New & 2nd in Object_Calculate_FWHM, but the maths involved will be sourced
+  from fresh locations.
+
   Revision 1.12.2.2  2008/06/05 13:56:51  eng
   *** empty log message ***
 
@@ -224,7 +238,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.3 2008-08-22 15:58:17 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.4 2008-08-30 15:37:21 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -297,6 +311,7 @@ detecting objects, and the other low-sigma to use when getting connected pixels.
 This way we get well sampled objects out to the "wings", but only for bright objects,
 and we don't waste time doing this for every object 1-sig above median.
 
+bollocks
                      
 */
 
@@ -393,6 +408,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Searching for objects.");
 #endif
+
 
 
   /* ---------------------- */
@@ -727,8 +743,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* SET FIRST OBJECT */
   /* ---------------- */
   w_object = (*first_object);
-
-
 #if LOGGING > 10
   Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: w_object (%p) set from first_object (%p).",
 		    w_object,(*first_object));
@@ -738,63 +752,47 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* --------------------------- */
   /* RUN THROUGH LIST OF OBJECTS */
   /* --------------------------- */
-  while(w_object != NULL)
-    {
-
+  while(w_object != NULL){
 #if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: Calculating FWHM for object (%d) at %.2f,%.2f.",
-			w_object->objnum,w_object->xpos,w_object->ypos);
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: Calculating FWHM for object (%d) at %.2f,%.2f.",
+		      w_object->objnum,w_object->xpos,w_object->ypos);
+#endif
+    
+
+    /* calculate FWHM of object */
+    /* ------------------------ */
+    Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
+#if LOGGING > 5
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: "
+		      "object (%d) at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
+		      w_object->objnum,w_object->xpos,w_object->ypos,fwhm,is_stellar);
 #endif
 
 
-      /* calculate FWHM of object */
-      /* ------------------------ */
-      Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
-
-
-
-
-#if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get:"
-			"object (%d) at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
-			w_object->objnum,w_object->xpos,w_object->ypos,fwhm,is_stellar);
-#endif
-
-
-      /* if object stellar, add its FWHM to list of FWHMs */
-      /* ------------------------------------------------ */
-      if(is_stellar)
-	{
-	  if(fwhm_list == NULL)
-	    fwhm_list = (float*)malloc(sizeof(float));
-	  else
-	    fwhm_list = (float*)realloc(fwhm_list,((*stellar_count)+1)*sizeof(float));
+    /* if object stellar, add its FWHM to list of FWHMs */
+    /* ------------------------------------------------ */
+    if(is_stellar){
+      if(fwhm_list == NULL)
+	fwhm_list = (float*)malloc(sizeof(float));
+      else
+	fwhm_list = (float*)realloc(fwhm_list,((*stellar_count)+1)*sizeof(float));
 #ifdef MEMORYCHECK
-	  if(fwhm_list == NULL)
-	    {
-	      Object_Error_Number = 8;
-	      sprintf(Object_Error_String,"Object_List_Get:Failed to allocate FWHM list(%d).",
-		      *stellar_count);
-	      return FALSE;
-	    }
+      if(fwhm_list == NULL){
+	Object_Error_Number = 8;
+	sprintf(Object_Error_String,"Object_List_Get:Failed to allocate FWHM list(%d).",
+		*stellar_count);
+	return FALSE;
+      }
 #endif
-	  fwhm_list[(*stellar_count)] = fwhm;
-	  (*stellar_count)++;
-	}
-      w_object = w_object->nextobject;		
+      fwhm_list[(*stellar_count)] = fwhm;
+      (*stellar_count)++;
     }
-
-
-
-
-
-
+    w_object = w_object->nextobject;		
+  }
 
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Calculating final seeing.");
+  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Calculating final seeing.");
 #endif
-
-
 
 
   /* ----------------------------- */     /* CJM: diddly In the original code theres */
@@ -805,7 +803,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   /* If any fwhms at all */
   /* ------------------- */
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of objects potentially available: %d", *stellar_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Number of objects potentially available: %d", *stellar_count);
 #endif
 
   if(*stellar_count > 0) {
@@ -867,7 +865,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
       Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",
+			  i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif
 
       /* sort array (LARGEST FIRST) by 1st struct member (numpix) */
@@ -876,7 +875,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
       Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
+	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f",
+			  i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm);
 #endif     
       
       /* now they're sorted by size, if the number of objects is greater than the maximum
@@ -1631,6 +1631,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
+
   } /* end "if any fwhms at all" */
 
 
@@ -2191,20 +2192,23 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
   struct Point_Struct *last_point = NULL;
   int point_count=0;
 
+  float SumXI = 0.0;                   /* Running totals for moment calculation */
+  float SumYI = 0.0;                   /* Running totals for moment calculation */
+  float SumI = 0.0;                    /* Running totals for moment calculation */
+
+
 
   /* ------------------------------- */
   /* ADD FIRST POINT TO BE PROCESSED */
   /* ------------------------------- */
 
-#if LOGGING > 9
+  #if LOGGING > 9
   Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
 		    "adding point %d,%d to list.",x,y);
-#endif
+  #endif
 
   if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
     return FALSE;
-  
-
   
 
   /* -------------------------------- */
@@ -2219,24 +2223,24 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     cy = point_list->y;
     
 
-    /* check this point hasn't been added to the object since it was added */
-    /* ------------------------------------------------------------------- */
-    if (image[(cy*naxis1)+cx] > thresh){   /* if pixel above threshold */      
-#if LOGGING > 9
+    /* if pixel value above threshold */
+    /* ------------------------------ */
+    if (image[(cy*naxis1)+cx] > thresh){     
+      #if LOGGING > 9
       Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
 			"adding pixel %d,%d to object.",cx,cy);
-#endif
+      #endif
 
       /* allocate new object pixel */
       temp_hp=(HighPixel*)malloc(sizeof(HighPixel));
-#ifdef MEMORYCHECK
+      #ifdef MEMORYCHECK
       if(temp_hp == NULL){
 	Object_Error_Number = 3;
 	sprintf(Object_Error_String,"Object_List_Get_Connected_Pixels:"
 		"Failed to allocate temp_hp.");
 	return FALSE;
       }
-#endif
+      #endif
 
 
       /* don't know what this bit does */
@@ -2254,8 +2258,9 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
       /* set currentx, current y from point list element */
       w_object->last_hp->x=cx;
       w_object->last_hp->y=cy;
-      w_object->last_hp->value=image[(cy*naxis1)+cx] - image_median;
-       
+      w_object->last_hp->value=image[(cy*naxis1)+cx] - image_median;  /* leave as is for now but return to this
+									 - (later) decided it's OK */
+
 
       /* important for recursion - stops infinite loops */
       image[(cy*naxis1)+cx]=0.0;
@@ -2263,13 +2268,20 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 
       /* end of per-pixel stuff: do some overall w_object stats */
       curpix = w_object->last_hp;
-      w_object->total=(w_object->total)+(temp_hp->value);
-      w_object->xpos=(w_object->xpos)+((temp_hp->x)*(temp_hp->value)); 
-      w_object->ypos=(w_object->ypos)+((temp_hp->y)*(temp_hp->value));
+
+/*       w_object->total=(w_object->total)+(temp_hp->value); */
+/*       w_object->xpos=(w_object->xpos)+((temp_hp->x)*(temp_hp->value));  */
+/*       w_object->ypos=(w_object->ypos)+((temp_hp->y)*(temp_hp->value)); */
+
+      SumXI += (temp_hp->x)*(temp_hp->value);
+      SumYI += (temp_hp->y)*(temp_hp->value);
+      SumI += temp_hp->value;
+
       if ((w_object->peak)<(temp_hp->value))
 	w_object->peak=(temp_hp->value);  
+
       w_object->numpix ++;
-      
+
       /* start of recursive stuff */
       for (x1 = cx-1; x1<=cx+1; x1++){
 	for (y1 = cy-1; y1<=cy+1; y1++){
@@ -2277,11 +2289,11 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 	    continue;                                           /* set a flag here to say crap object? */
 	  if (image[(y1*naxis1)+x1] > thresh){
 	    /* add this point to be processed */
-#if LOGGING > 9
-	    Object_Log_Format(OBJECT_LOG_BIT_POINT,
-			      "Object_List_Get_Connected_Pixels:"
-			      "adding point %d,%d to list.",x1,y1);
-#endif
+            #if LOGGING > 9
+	      Object_Log_Format(OBJECT_LOG_BIT_POINT,
+		  	      "Object_List_Get_Connected_Pixels:"
+		  	      "adding point %d,%d to list.",x1,y1);
+            #endif
 	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
 	      return FALSE;
 	  }
@@ -2292,18 +2304,18 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     /* if already added to object */
     /* -------------------------- */
     else {
-#if LOGGING > 9
+      #if LOGGING > 9
       Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
 			"pixel %d,%d already added to object, ignoring.",cx,cy);
-#endif
+      #endif
     }
     
     /* delete processed point */
     /* ---------------------- */
-#if LOGGING > 9
+    #if LOGGING > 9
     Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
 		      "deleting point %d,%d from list.",cx,cy);
-#endif
+    #endif
     if(!Point_List_Remove_Head(&point_list,&point_count))
       return FALSE;
 
@@ -2315,14 +2327,8 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
   /* -------------------------------- */
   /* CALCULATE MEAN X AND Y POSITIONS */
   /* -------------------------------- */
-  w_object->xpos=(w_object->xpos)/(w_object->total);
-  w_object->ypos=(w_object->ypos)/(w_object->total);
-
-
-
-
-
-
+  w_object->xpos = SumXI/SumI;
+  w_object->ypos = SumYI/SumI;
 
 
   return TRUE;
@@ -2585,8 +2591,8 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   double FWHM;                    /* FWHM */
 
 
-/*   int Do_Moffat = TRUE; */
-  int Do_Moffat = FALSE;
+  int Do_Moffat = TRUE;
+/*   int Do_Moffat = FALSE; */
 
  
 
@@ -2603,41 +2609,22 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   */
   curpix = w_object->highpixel;
 
-  /* new code - doesn't work */
-/*   while(curpix !=NULL) */
-/*     { */
-/*       intensity=(curpix->value);  */
-/*       xoff=(w_object->xpos)-(curpix->x); */
-/*       yoff=(w_object->ypos)-(curpix->y); */
-/*       x2I  += xoff*xoff*intensity; */
-/*       y2I  += yoff*yoff*intensity; */
-/*       xy2I += xoff*yoff*intensity; */
-/*       SumI += intensity; */
-/*       curpix=curpix->next_pixel; */
-/*     } */
-/*   x2nd = x2I/SumI; */
-/*   y2nd = y2I/SumI; */
-/*   xy2nd = xy2I/SumI; */
-  /* new code ends */
-
-
-  /* original code from object.c in this block */
+  /* new code */
   while(curpix !=NULL)
     {
       intensity=(curpix->value);
       xoff=(w_object->xpos)-(curpix->x);
       yoff=(w_object->ypos)-(curpix->y);
-      x2nd  += xoff*xoff*intensity;
-      y2nd  += yoff*yoff*intensity;
-      xy2nd += xoff*yoff*intensity;
-      aux += intensity;
+      x2I  += xoff*xoff*intensity;
+      y2I  += yoff*yoff*intensity;
+      xy2I += xoff*yoff*intensity;
+      SumI += intensity;
       curpix=curpix->next_pixel;
     }
-  x2nd  /= aux;
-  y2nd  /= aux;
-  xy2nd /= aux;
-  /* original code ends */
-
+  x2nd = x2I/SumI;
+  y2nd = y2I/SumI;
+  xy2nd = xy2I/SumI;
+  /* new code ends */
 
 
   /*
@@ -2842,56 +2829,51 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 			w_object->objnum);
 #endif
       
-/*       float xpos_pix; */
-/*       float ypos_pix; */
-/*       float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I; */
-/*       float x,y,I; */
-/*       float Var_X, Var_Y, Var_XY; */
+      float xpos_pix;
+      float ypos_pix;
+      float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I;
+      float x,y,I;
+      float Var_X, Var_Y, Var_XY;
       float Sigma_X, Sigma_Y, FWHMx, FWHMy;
 
 
-/*       xpos_pix = floor(w_object->xpos + 0.5);  /\* nearest pixel to xpos *\/ */
-/*       ypos_pix = floor(w_object->ypos + 0.5);  /\* nearest pixel to ypos *\/       */
-/*       curpix = w_object->highpixel;            /\* set current pixel to object's first pixel *\/       */
+      xpos_pix = floor(w_object->xpos + 0.5);  /* nearest pixel to xpos */
+      ypos_pix = floor(w_object->ypos + 0.5);  /* nearest pixel to ypos */
+      curpix = w_object->highpixel;            /* set current pixel to object's first pixel */
 
-/*       Sum_Ix2 = 0.0;                           /\* initialise sum of (I * x^2) *\/ */
-/*       Sum_Iy2 = 0.0;                           /\* initialise sum of (I * y^2) *\/ */
-/*       Sum_Ixy = 0.0;                           /\* initialise sum of (I * x * y) *\/ */
-/*       Sum_I = 0.0;                             /\* initialise sum of I *\/ */
+      Sum_Ix2 = 0.0;                           /* initialise sum of (I * x^2) */
+      Sum_Iy2 = 0.0;                           /* initialise sum of (I * y^2) */
+      Sum_Ixy = 0.0;                           /* initialise sum of (I * x * y) */
+      Sum_I = 0.0;                             /* initialise sum of I */
 
-/*       while(curpix != NULL){                   /\* start looping through pixels in object *\/ */
+      while(curpix != NULL){                   /* start looping through pixels in object */
 
-/* 	x = curpix->x;                         /\* set x *\/ */
-/* 	y = curpix->y;                         /\* set y *\/ */
-/* 	I = curpix->value;                     /\* set intensity (pixel value) *\/ */
+	x = curpix->x;                         /* set x */
+	y = curpix->y;                         /* set y */
+	I = curpix->value;                     /* set intensity (pixel value) */
 
-/* 	Sum_Ix2 += (I * x * x);                /\* increment Sum_Ix2 *\/ */
-/* 	Sum_Iy2 += (I * y * y);                /\* increment Sum_Iy2 *\/ */
-/* 	Sum_Ixy += (I * x * y);                /\* increment Sum_Ixy *\/ */
-/* 	Sum_I += I;                            /\* increment Sum_I *\/ */
+	Sum_Ix2 += (I * x * x);                /* increment Sum_Ix2 */
+	Sum_Iy2 += (I * y * y);                /* increment Sum_Iy2 */
+	Sum_Ixy += (I * x * y);                /* increment Sum_Ixy */
+	Sum_I += I;                            /* increment Sum_I */
 
-/* 	curpix=curpix->next_pixel;             /\* next pixel in object *\/ */
-/*       } */
+	curpix=curpix->next_pixel;             /* next pixel in object */
+      }
       
-/*       Var_X = (Sum_Ix2 / Sum_I) - (w_object->xpos * w_object->xpos);    /\* 2nd moment (x) *\/ */
-/*       Var_Y = (Sum_Iy2 / Sum_I) - (w_object->ypos * w_object->ypos);    /\* 2nd moment (y) *\/ */
-/*       Var_XY = (Sum_Ixy / Sum_I) - (w_object->xpos * w_object->ypos);   /\* 2nd moment (xy) *\/ */
+      Var_X = (Sum_Ix2 / Sum_I) - (w_object->xpos * w_object->xpos);    /* 2nd moment (x) */
+      Var_Y = (Sum_Iy2 / Sum_I) - (w_object->ypos * w_object->ypos);    /* 2nd moment (y) */
+      Var_XY = (Sum_Ixy / Sum_I) - (w_object->xpos * w_object->ypos);   /* 2nd moment (xy) */
 
-/*       Sigma_X = sqrt(Var_X); */
-/*       Sigma_Y = sqrt(Var_Y); */
+      Sigma_X = sqrt(Var_X);
+      Sigma_Y = sqrt(Var_Y);
       
-/*       FWHMx = 2.3548 * Sigma_X; */
-/*       FWHMy = 2.3548 * Sigma_Y; */
-      
-/*       w_object->fwhmx = FWHMx; */
-/*       w_object->fwhmx = FWHMy; */
-
-
-      FWHMx = 2.3548 * sqrt(x2nd);
-      FWHMy = 2.3548 * sqrt(y2nd);
+      FWHMx = 2.3548 * Sigma_X;
+      FWHMy = 2.3548 * Sigma_Y;
       
       w_object->fwhmx = FWHMx;
       w_object->fwhmy = FWHMy;
+
+      
       (*fwhm) = (w_object->fwhmx + w_object->fwhmy)/2;
 
 #if LOGGING > 5
@@ -2902,8 +2884,6 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
     } /* end of doing thing other than moffat */
     
-/*     printf("DEBUG object (%d): 2M: Size = %d FWHMxy = %.2f %.2f\n", */
-/* 	   w_object->objnum,w_object->numpix,w_object->fwhmx,w_object->fwhmy); */
 
   } /* end of CALCULATE FWHM IF OBJECT IS STELLAR */
 
@@ -3116,6 +3096,19 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.3  2008/08/22 15:58:17  eng
+** Working version of two-threshold ("TT") algorithm. Emphasis on applying the TT to the old
+** 2nd-moment ("2M")method of calculating FWHM again. Why? Because the Moffatt-fitting algorithm
+** barfs out during a focus run, which admittedly may be a coding problem rather than
+** fundamental method problem, AND it is very slow, which again could just be down to
+** breadboard (not efficinet) coding practices. Looked again at the 2m version because
+** it looked more robust and a lot faster. However this version still produces wrong
+** FWHMs - a fault which might be down to the maths used for the 1st & 2nd moment calc.
+** Therefore, going to try coding the 1st/2nd moments again from scratch rather than try to
+** second-guess the original existing code. 1st moment will still be calculated in
+** Object_List_Get_New & 2nd in Object_Calculate_FWHM, but the maths involved will be sourced
+** from fresh locations.
+**
 ** Revision 1.12.2.2  2008/06/05 13:56:51  eng
 ** *** empty log message ***
 **

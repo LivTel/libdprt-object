@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.4 2008-08-30 15:37:21 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.5 2008-09-09 11:08:10 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,12 +31,16 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.4 $
+ * @version $Revision: 1.12.2.5 $
  */
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.4  2008/08/30 15:37:21  eng
+    Closing 1.12.2.3 - FWHM code was fixed, part typo error. New code from scratch worked but
+    produced FWHMs that were now much larger than the original.
+
   Revision 1.12.2.3  2008/08/22 15:58:17  eng
   Working version of two-threshold ("TT") algorithm. Emphasis on applying the TT to the old
   2nd-moment ("2M")method of calculating FWHM again. Why? Because the Moffatt-fitting algorithm
@@ -238,7 +242,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.4 2008-08-30 15:37:21 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.5 2008-09-09 11:08:10 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -310,8 +314,6 @@ This version expects TWO thresholds (thresh1, thresh2); one high-sigma to use wh
 detecting objects, and the other low-sigma to use when getting connected pixels.
 This way we get well sampled objects out to the "wings", but only for bright objects,
 and we don't waste time doing this for every object 1-sig above median.
-
-bollocks
                      
 */
 
@@ -713,9 +715,11 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		      w_object->objnum,curpix->x,curpix->y,curpix->value);
 	 curpix = curpix->next_pixel;           /* goto next pixel */
       }
-      w_object = w_object->nextobject;	        /* goto next object */	
+      w_object = w_object->nextobject;	        /* goto next object */
   }
 #endif
+
+
 
 
 
@@ -897,7 +901,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n--------------------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"toplist\t%d\t%d\t%d\t%f\t%f\t%f",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
@@ -919,7 +923,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0	
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n---------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f\t%f\n",
+	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f",
 		 i,fwhmarray[i].objnum,
 		 fwhmarray[i].numpix,fwhmarray[i].fwhm,
 		 fwhmarray[i].xpos,fwhmarray[i].ypos);
@@ -961,6 +965,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	(*seeing) = DEFAULT_SEEING_TOOSMALL;        /* set the seeing to DEFAULT_SEEING_TOOSMALL */
 	(*sflag) = 1;                               /* and set sflag to show the seeing was fudged */
       }
+
 
     } /* end fwhm_lt_dia_count > 0 */
 
@@ -2563,8 +2568,8 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   /* VARIABLES CONFIG */
   /* ---------------- */
 
-                                  /* object ellipticity */
-                                  /* ------------------ */
+  /* object ellipticity */
+  /* ------------------ */
   float x2I=0,y2I=0,xy2I;         /* running total of offset^2 x intensity in x, y & xy */
   float x2nd=0,y2nd=0,xy2nd=0;    /* first and second order moments of the ellipse data */
   float xoff=0,yoff=0;            /* offsets from the centre of the object determined by */
@@ -2580,8 +2585,18 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   HighPixel *curpix;              /* pixel pointer */
   char stellarflag[32];           /* stellar flag string for diagnostics */
 
-                                  /* Moffat curve fitting optimisation */
-                                  /* --------------------------------- */
+  /* 2nd Moment (2M) method section */
+  /* ------------------------------ */
+  float xpos_pix;                          
+  float ypos_pix;
+  float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I;
+  float x,y,I;
+  float Var_X, Var_Y, Var_XY;
+  float Sigma_X, Sigma_Y, FWHMx, FWHMy;
+
+
+  /* Moffat curve fitting optimisation */
+  /* --------------------------------- */
   double *pixr, *pixz;            /* optimisation r,z arrays */
   int ipix;                       /* pixel counter */
   double dx,dy;                   /* pixel offset from 1st moment */
@@ -2591,10 +2606,35 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   double FWHM;                    /* FWHM */
 
 
-  int Do_Moffat = TRUE;
-/*   int Do_Moffat = FALSE; */
+                                  /* sExtractor code for fwhm calc */
+                                  /* ----------------------------- */
+  float sex_s,sex_sx,sex_sy,sex_sxx,sex_sxy;
+  float sex_onefifthpeak;         /* inner threshold to only deal with pixels  brighter than
+				     one-fifth of the peak pixel */
+  float sex_pix;                  /* pixel value */
+  float sex_dx,sex_dy;            /* pixel x,y offsets from centroid */
+  float sex_lpix;                 /* natural log of pixel value */
+  float sex_inverr2;              /* (pixel value)^2 - why's it called inverr2? */
+  float sex_d2;                   /* pixel radial distance from centroid (squared) */
+  float sex_d;
+  float sex_b;
+  float sex_fwhm;
 
- 
+
+
+
+
+  /* --------------------------- */
+  /* SET FWHM CALCULATION METHOD */
+  /* --------------------------- */
+
+  char methodstr[16] = "sEx";
+  /* Options are (case sensitive):
+     moffat - radial moffat curve fitting (slow)
+     2M     - interpretation of sExtractor algorithm
+     sEx    - actual sExtractor code gleaned by RJS
+  */
+
 
   /* --------------------------------------------- */
   /* CALCULATE OBJECT ELLIPTICITY (VIA 2ND MOMENT) */
@@ -2649,10 +2689,10 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   diff=major-minor;
   ellip = (major-minor)/major;
 
-/*   printf("DEBUG: Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\n", */
-/* 	 w_object->objnum, */
-/* 	 major,minor, */
-/* 	 ellip); */
+  /*   printf("DEBUG: Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\n", */
+  /* 	 w_object->objnum, */
+  /* 	 major,minor, */
+  /* 	 ellip); */
 
 
 #if LOGGING > 5
@@ -2693,46 +2733,27 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   /* CALCULATE FWHM */
   /* -------------- */
 
-  /*
-    if nonstellar then FWHM => "nonstellar object" default
-    ------------------------------------------------------
-  */
-  if (w_object->is_stellar == FALSE){
-    w_object->fwhmx = DEFAULT_SEEING_NONSTELLAR;
-    w_object->fwhmy = DEFAULT_SEEING_NONSTELLAR;
-    (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
-#if LOGGING > 5
-    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-		      "Object_Calculate_FWHM: object (%d) is %s, setting FWHM to %f",
-		      w_object->objnum,stellarflag,DEFAULT_SEEING_NONSTELLAR);
-#endif
-    
-  }
+  
+  if (w_object->is_stellar == TRUE){ 
 
-
-  /*
-    if stellar though, then calc fwhm
-    ---------------------------------
-  */
-  else {
-
-#if LOGGING > 5
-    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-		      "Object_Calculate_FWHM: object (%d) is %s",
-		      w_object->objnum,stellarflag);
-#endif
-    
 
     /*
-      either fit moffat curve to radial profile
-      -----------------------------------------
+                  __  __      _   
+       _ __  ___ / _|/ _|__ _| |_ 
+      | '  \/ _ \  _|  _/ _` |  _|
+      |_|_|_\___/_| |_| \__,_|\__|
+                            
     */
-
-    if (Do_Moffat){
+    if (strcmp(methodstr,"moffat") == 0){
 
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-			"Object_Calculate_FWHM: object (%d): doing Moffat MF",
+			"Object_Calculate_FWHM: using %s method",
+			methodstr);
+#endif
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: object (%d): doing Moffat",
 			w_object->objnum);
 #endif
        
@@ -2817,26 +2838,26 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
 
     /*
-      or work out from second moment
-      ------------------------------
+       ___   __  __ 
+      |_  ) |  \/  |
+       / /  | |\/| |  (second-moment method - interpreted from sExtractor)
+      /___| |_|  |_|
+              
     */
- 
-    else {
 
+    else if (strcmp(methodstr,"2M") == 0){
+
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: using %s method",
+			methodstr);
+#endif
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_FWHM,
 			"Object_Calculate_FWHM: object (%d): doing 2nd moment 2M",
 			w_object->objnum);
 #endif
       
-      float xpos_pix;
-      float ypos_pix;
-      float Sum_Ix2, Sum_Iy2, Sum_Ixy, Sum_I;
-      float x,y,I;
-      float Var_X, Var_Y, Var_XY;
-      float Sigma_X, Sigma_Y, FWHMx, FWHMy;
-
-
       xpos_pix = floor(w_object->xpos + 0.5);  /* nearest pixel to xpos */
       ypos_pix = floor(w_object->ypos + 0.5);  /* nearest pixel to ypos */
       curpix = w_object->highpixel;            /* set current pixel to object's first pixel */
@@ -2882,11 +2903,115 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 			w_object->objnum,w_object->fwhmx,w_object->fwhmy);
 #endif
 
-    } /* end of doing thing other than moffat */
-    
+    } /* end of 2M */
 
+
+    /*
+          ___     _               _           
+       __| __|_ _| |_ _ _ __ _ __| |_ ___ _ _ 
+      (_-< _|\ \ /  _| '_/ _` / _|  _/ _ \ '_|
+      /__/___/_\_\\__|_| \__,_\__|\__\___/_|  
+                                        
+      from code as copied by RJS & using orig var names as much as possible for clarity
+      (this version appeared in gausstest3.c and ran fine)
+      to avoid possible confusion, all variables in this section will be prefixed with 'sex_'
+    */
+
+    else if (strcmp(methodstr,"sEx") == 0){
+
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: using %s method",
+			methodstr);
+#endif
+
+
+      /* BEGIN SNIPPET */
+
+      sex_s = sex_sx = sex_sy = sex_sxx = sex_sxy = 0.0;
+
+      /* for each pixel IN OBJECT i.e. AFTER thresholding */
+      
+      sex_onefifthpeak = (w_object->peak)/5.0; 
+
+      curpix = w_object->highpixel;            /* set current pixel to object's first pixel */
+      while(curpix != NULL){                   /* start looping through pixels in object */
+
+	/* pixel value */
+	sex_pix = curpix->value;                   /* This should have had BGmedian subtracted already */
+
+
+	/* reject if sex_pix < 1/5 of peak*/
+	if (sex_pix < sex_onefifthpeak){
+	  curpix=curpix->next_pixel;               /* next pixel in object */
+	  continue;                                /* go to next iteration of while loop */
+	}
+
+	/* X,Y offsets from centroid */
+	sex_dx = curpix->x - w_object->xpos;
+	sex_dy = curpix->y - w_object->ypos;
+
+	/* natural log */
+	sex_lpix = log(sex_pix);
+	sex_inverr2 = sex_pix*sex_pix;
+	sex_s += sex_inverr2;
+
+	/* find radial distance of pixel from centroid */
+	sex_d2 = sex_dx*sex_dx+sex_dy*sex_dy;             /* d^2 = dx^2 + dy^2 */
+	sex_sx += sex_d2*sex_inverr2;           
+	sex_sxx += sex_d2*sex_d2*sex_inverr2;
+	sex_sy += sex_lpix*sex_inverr2;
+	sex_sxy += sex_lpix*sex_d2*sex_inverr2;
+
+	curpix=curpix->next_pixel;                        /* next pixel in object */
+      }
+      sex_d = sex_s*sex_sxx-sex_sx*sex_sx;
+
+
+      /* don't understand this bit fully,
+	 and can't follow the if (b<(bmax = 1/(13*obj->a*obj->b))) line
+	 - how do we know what a is? I'm leaving that out for now. */
+      if (fabs(sex_d) > 0.0){
+	sex_b = -(sex_s*sex_sxy-sex_sx*sex_sy)/sex_d;
+	sex_fwhm = (float)(1.6651/sqrt(sex_b));
+	if (sex_fwhm > 0.0)
+	  sex_fwhm -= 1.0/(4.0*sex_fwhm);
+      }
+
+      w_object->fwhmx = sex_fwhm;
+      w_object->fwhmy = sex_fwhm;
+      (*fwhm) = sex_fwhm;
+
+    } /* end of sExtractor method section */
+
+    /* if bad method selector */
+    else {
+#if LOGGING > 5
+      Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+			"Object_Calculate_FWHM: unknown method descriptor \"%s\"; exiting\n",
+			methodstr);
+#endif
+      exit (101);
+    }
+   
   } /* end of CALCULATE FWHM IF OBJECT IS STELLAR */
 
+  else {
+    /*
+      if nonstellar then FWHM => "nonstellar object" default
+      ------------------------------------------------------
+    */
+    w_object->fwhmx = DEFAULT_SEEING_NONSTELLAR;
+    w_object->fwhmy = DEFAULT_SEEING_NONSTELLAR;
+    (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
+#if LOGGING > 5
+    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
+		      "Object_Calculate_FWHM: object (%d) is %s, setting FWHM to %f",
+		      w_object->objnum,stellarflag,DEFAULT_SEEING_NONSTELLAR);
+#endif
+    
+  }
+   
 }
 
 
@@ -3096,6 +3221,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.4  2008/08/30 15:37:21  eng
+**   Closing 1.12.2.3 - FWHM code was fixed, part typo error. New code from scratch worked but
+**   produced FWHMs that were now much larger than the original.
+**
 ** Revision 1.12.2.3  2008/08/22 15:58:17  eng
 ** Working version of two-threshold ("TT") algorithm. Emphasis on applying the TT to the old
 ** 2nd-moment ("2M")method of calculating FWHM again. Why? Because the Moffatt-fitting algorithm

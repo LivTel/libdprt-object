@@ -29,7 +29,7 @@
 
 */
 /* object_test_jmm.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.5.1.1 2008-06-03 15:10:56 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test_jmm.c,v 1.5.1.2 2008-09-25 16:13:53 eng Exp $
 */
 
 
@@ -50,8 +50,15 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.5.1.1  2008/06/03 15:10:56  eng
+  This branch from 1.5 is to go with object_jmm version 1.12.2.1. We want to see what
+  happens if we use two thresholds, one to make initial detection and the other to define
+  object boundaries. The detection threshold should be high e.g. 10sigma, and the wings
+  threshold should be as low as possible, say 1 sigma. We want to adapt 1.5 to enable this
+  dual-threshold capability, hence this branch.
+
   Revision 1.5  2008/06/03 15:03:03  eng
-  Checked in by JMM in preparation for a branching of version 1.4. Just wanted
+  Checked in by JMM in preparation for a branching of version 1.5. Just wanted
   to save what was done up to this point. This version adds extra functionality to the
   arguments, such as selecting a sigma value for thresholding.
 
@@ -113,7 +120,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_jmm.c,v 1.5.1.1 2008-06-03 15:10:56 eng Exp $";
+static char rcsid[] = "$Id: object_test_jmm.c,v 1.5.1.2 2008-09-25 16:13:53 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -123,9 +130,10 @@ static int Naxis2;                                         /* Dimensions of data
 static float Median;                                       /* Background median counts */
 static float Background_SD;                                /* Standard deviation of background */
 static float PixelScale;                                   /* Pixel scale of binned image (arcsec per binned pixel) */
-static float Threshold = -1.0;                             /* Default nonsense value, only set if by argument */
+static float Threshold = -1.0;                             /* Default nonsense values, only set if by argument */
 static int Threshold_Set_Flag = FALSE;                     /* Flag to say if Threshold specified in args */
-static float BGSigma = 10.0;                               /* Default threshold level in sigma */
+static float BGSigma;                                      /* Threshold level in sigma */
+static float BGSigma_default = 10.0;                       /* Default threshold level in sigma */
 static int BGSigma_Set_Flag = FALSE;                       /* Flag to say if BGSigma specified in args */
 static int Log_Level = 0;                                  /* Log level */
 static int verbose = FALSE;                                /* Verbose flag (off by default) */
@@ -198,26 +206,33 @@ int main(int argc, char *argv[])
     CALCULATE THRESHOLD
     -------------------
     Median & Background_SD are found automatically
-    in Load(). BGSigma is set to default to 10.0 sigma
-    unless specified by user in Parse_Args.
+    in Load(). BGSigma1 is set to default to 10.0 sigma
+    and BGSigma2 set to 1.0 sigma unless specified by
+    user in Parse_Args.
     Threshold is calculated from these values unless
     specified explictly by user in Parse_Args.
   */
   if (verbose)
-    fprintf(stdout,"object_test: threshold:\n");
+    fprintf(stdout,"object_test: Image Median = %.2f, 1 Sigma Background Std Deviation = %.2f\n",Median,Background_SD);
 
   if (Threshold_Set_Flag){
     thresh = Threshold;
     if (verbose)
-      fprintf(stdout,"object_test: threshold set explicitly to %f counts.",thresh);
+      fprintf(stdout,"object_test: thresholding explicitly to %f counts.",thresh);
   }
-  else {
+  else if (BGSigma_Set_Flag){
     thresh = Median + ( BGSigma * Background_SD );
     if (verbose)
-      fprintf(stdout,"object_test: Median = %.2f, thresholding at %.2f sig (1 sig = %.2f) so thresh = %.2f\n",
-	      Median, BGSigma, Background_SD, thresh);
+      fprintf(stdout,"object_test: thresholding at %.2f sigma (%.2f counts)\n",
+	      BGSigma, thresh);
   }
-
+  else {
+    thresh = Median + ( BGSigma_default * Background_SD );
+    if (verbose)
+      fprintf(stdout,"object_test: No thresholds set by user - defaulting to %.1f sigma (%.2f counts)\n",
+	      BGSigma_default, thresh);
+  }
+  
 
   /*
     -------------
@@ -226,10 +241,11 @@ int main(int argc, char *argv[])
   */
   if (verbose)
     fprintf(stdout,"object_test: running object detection....\n");
+
   clock_gettime(CLOCK_REALTIME,&start_time);
-  retval = Object_List_Get(Image_Data,Median,Naxis1,Naxis2,thresh,8,&object_list,&seeing_flag,&seeing,
-			   &obj_count_init,&obj_count_size,&obj_count_stellar,&obj_count_dia);
+  retval = Object_List_Get(Image_Data,Median,Naxis1,Naxis2,thresh,8,&object_list,&seeing_flag,&seeing);
   clock_gettime(CLOCK_REALTIME,&stop_time);
+
   if(retval == FALSE){
     Object_Error();
     return 4;
@@ -239,39 +255,8 @@ int main(int argc, char *argv[])
      ------------------------------------------------- */
   if (verbose){
     fprintf(stdout,"object_test: The procedure took %d ms.\n",difftimems(start_time,stop_time));
-    fprintf(stdout,"object_test: Object counts: %d initial, %d above minimum size limit, %d stellar, %d sane FWHM\n",
-	    obj_count_init, obj_count_size, obj_count_stellar, obj_count_dia);
     fprintf(stdout,"object_test: The seeing was %.2f pixels (%.2f arcsec) with seeing_flag = %d (0 is good).\n",
 	    seeing,seeing*PixelScale,seeing_flag);
-
-/*     fprintf(stdout,"objnum\txpos\typos\tfwhm\tmf_k\tmf_a\tmf_b\ttotal\tnumpix\tpeak\n"); */
-/*     object = object_list; */
-/*     while(object != NULL){ */
-/*       peak_abs = object->peak + Median; */
-
-/*       fprintf(stdout,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n", */
-/* 	      object->objnum, */
-/* 	      object->xpos,object->ypos, */
-/* 	      object->fwhmx,                                                 /\* fwhmx = fwhmy = fwhm *\/ */
-/* 	      object->moffat_k,object->moffat_a,object->moffat_b, */
-/* 	      object->total, */
-/* 	      object->numpix, */
-/* 	      peak_abs); */
-
-/*       fprintf(fPtr,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n", */
-/* 	      object->objnum, */
-/* 	      object->xpos,object->ypos, */
-/* 	      object->fwhmx,                                                 /\* fwhmx = fwhmy = fwhm *\/ */
-/* 	      object->moffat_k,object->moffat_a,object->moffat_b, */
-/* 	      object->total, */
-/* 	      object->numpix, */
-/* 	      peak_abs); */
-
-    
-/*       object = object->nextobject; */
-/*     } */
-
-
   }
 
   /*
@@ -400,12 +385,15 @@ static int Parse_Args(int argc,char *argv[])
     /* ------------------------ */
     
     else if ((strcmp(argv[i],"-threshold")==0)||(strcmp(argv[i],"-t")==0)){
+
+      /* check if no end of line before our 2 args are done */
       if((i+1) < argc){
 	retval = sscanf(argv[i+1],"%f",&Threshold);
 	if(retval != 1){
 	  fprintf(stderr,"object_test: Parse_Args: threshold parameter %s not a float.\n",argv[i+1]);
 	  return FALSE;
 	}
+
 	Threshold_Set_Flag = TRUE;
 	i++;
       }
@@ -420,6 +408,7 @@ static int Parse_Args(int argc,char *argv[])
     /* ----------------------- */
     
     else if ((strcmp(argv[i],"-sigma")==0)||(strcmp(argv[i],"-s")==0)){
+
       if((i+1) < argc){
 	retval = sscanf(argv[i+1],"%f",&BGSigma);
 	if(retval != 1){
@@ -434,6 +423,7 @@ static int Parse_Args(int argc,char *argv[])
 	return FALSE;
       }
     }
+
 
     /* --------------- */
     /* INPUT FITS FILE */
@@ -481,9 +471,9 @@ static void Help(void)
   fprintf(stdout,"\t<FITS filename>  [-o[utput] <FITS filename>]\n");
   fprintf(stdout,"-help prints this help message and exits.\n");
   fprintf(stdout,"-verbose prints progress to stdout (default off).\n");
-  fprintf(stdout,"-log_level sets the amount of logging produced.\n");
-  fprintf(stdout,"-threshold sets the threshold level in counts\n");
-  fprintf(stdout,"-sigma sets the threshold level in sigma (default 10.0)\n");
+  fprintf(stdout,"-log_level N sets the amount of logging produced.\n");
+  fprintf(stdout,"-threshold N sets the threshold levels in counts\n");
+  fprintf(stdout,"-sigma N sets the threshold levels in sigma (default 10.0)\n");
   fprintf(stdout,"-output writes an object mask to the specified FITS filename.\n");
   fprintf(stdout,"You must always specify a filename to reduce.\n");
   fprintf(stdout,"Ideally, pass in a flat-fielded de-biased image.\n");
@@ -832,6 +822,13 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.5.1.1  2008/06/03 15:10:56  eng
+** This branch from 1.5 is to go with object_jmm version 1.12.2.1. We want to see what
+** happens if we use two thresholds, one to make initial detection and the other to define
+** object boundaries. The detection threshold should be high e.g. 10sigma, and the wings
+** threshold should be as low as possible, say 1 sigma. We want to adapt 1.5 to enable this
+** dual-threshold capability, hence this branch.
+**
 ** Revision 1.5  2008/06/03 15:03:03  eng
 ** Checked in by JMM in preparation for a branching of version 1.4. Just wanted
 ** to save what was done up to this point.

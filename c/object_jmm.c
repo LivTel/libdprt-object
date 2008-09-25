@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.7 2008-09-25 13:27:30 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.8 2008-09-25 15:30:36 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,19 +31,21 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.7 $
+ * @version $Revision: 1.12.2.8 $
  */
 
 
-/*
-  Notes for 1.12.2.7
-  Hunting down the error that causes barfing when all logging is switched off.
-
-*/
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.7  2008/09/25 13:27:30  eng
+  Fix of memory leak whereby the call to Object_Calculate_FWHM only produced sane
+  results if a mystery 'printf' was added just before or after the function call.
+  The variable 'xy2I' in Object_Calculate_FWHM was uninitialised and the best
+  explanation is that the extra printf happened to push the pointer into the right
+  place. It is initialised now and everything seems to run now.
+
   Revision 1.12.2.6  2008/09/15 13:12:09  eng
   Changed fwhm_lt_dia_count --> usable_count
   Deleted Object_List_Get
@@ -204,9 +206,10 @@
  * Other miscellaneous definitions
  */
 #define STELLAR_ELLIP_LIMIT   (0.3)         /* upper limit of ellipticity for an object to be */
+                                            /* classed as 'stellar' */
 #define MAX_N_FWHM            (11)          /* deliberately chosen to be odd */
 #define MAX_N_FWHM_MID        (5)           /* median for 11 items           */
-                                            /* classed as 'stellar' */
+
 
 /* ------------------------------------------------------- */
 /* structure declarations */
@@ -272,7 +275,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.7 2008-09-25 13:27:30 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.8 2008-09-25 15:30:36 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -298,6 +301,9 @@ static char Object_Buff[OBJECT_ERROR_STRING_LENGTH];
 /* ------------------------------------------------------- */
 /* internal function declarations */
 /* ------------------------------------------------------- */
+/* RJS 2008-09-16 Only new function I have added */
+static int Object_Find_Peak(int naxis1,int naxis2,int x,int y,float *image,Object *w_object);
+/* RJS 2008-09-16 End of addition */
 static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_median,int x,int y,float thresh,
 					    float *image,Object *w_object);
 static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stellar,float *fwhm);
@@ -374,9 +380,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   Object *w_object = NULL;
   Object *last_object = NULL;
   Object *next_object = NULL;
-  HighPixel *curpix = NULL;
+  /* HighPixel *curpix = NULL; */
   float fwhm;
   int y,x,done,is_stellar;
+/* RJS 2008-09-16 Only new variable I have added */
+  int local_peak_x,local_peak_y;	    /* Location of the peak returned by Object_Find_Peak() */
+/* RJS 2008-09-16 End of addition */
   int fwhmarray_size = 0;
   struct sizefwhm *fwhmarray = NULL;        /* array for objects whose fwhm is smaller than its diameter */
   int obj_area;                             /* number of pixels in object */
@@ -385,8 +394,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   int mid_posn;                             /* middle position of fwhmarray, to find median */
   int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
   float median_fwhm;                        /* median fwhm obtained from fwhmarray */
-  int i;                                    /* generic counter */
-  int a = 0;
+/*   int i;                                    /\* generic counter *\/ */
+/*   int a = 0; */
 
 
 
@@ -532,12 +541,49 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      w_object->ypos=0;
 	      w_object->peak=0;
 	      w_object->numpix=0;
+
+
+
+
+/* Addition by RJS 2008-09-16 to find the peak and set 1/5 peak threshold */
+	      /*printf("Find peak pixels detection: x,y = %d,%d image_median=%f, thresh1=%f\n",x,y,image_median,thresh1);*/
+	      Object_Find_Peak(naxis1,naxis2,x,y,image,w_object);
+	      /*printf("\tpeak = %f, xpos = %f, ypos = %f, numpix=%d\n",w_object->peak,w_object->xpos,w_object->ypos,w_object->numpix);*/
+	      /* Do not reassign x,y to the peak because once we have extracted this source we want to go back to 
+	       * searching from where we left off, so we keep x,y to be where we first found this object. It is however
+	       * much more efficient to start the extraction from the peak, so we create these local_peak_x,local_peak_y
+	       * coords and start from there. */
+	      local_peak_x = w_object->xpos;
+	      local_peak_y = w_object->ypos;
+	      thresh2 = image_median + ( (w_object->peak-image_median) / 5); 	/* Object_Find_Peak does not background subtract */
+
+	      /* You must extract at least down to thresh1. Never let thresh2 be above thresh1 otherwise you will
+	       * rediscover this object a second time and extract its halo as a second object after you have extracted
+	       * the core above thresh2 as a first obejct.  */
+	      if (thresh2 > thresh1)
+		thresh2 = thresh1;    
+
+	      /* Reset everything as if we have not run the Object_List_Get_Connected_Pixels() above */
+	      w_object->xpos=0;
+	      w_object->ypos=0;
+	      w_object->peak=0;
+	      w_object->numpix=0;
+	      /*printf("Connected pixels extraction: image_median=%f, thresh2=%f\n",image_median,thresh2);*/
+/* End of addition by RJS 2008-09-16. See also new function Object_Find_Peak() */
+
+
+
+
 	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh2,image,
 						   w_object))
 		{
 		  /* diddly free previous objects */
 		  return FALSE;
 		}
+/* RJS 2008-09-16 Debug output. Can be deleted */
+	      /* printf("\tpeak = %f, xpos = %f, ypos = %f, numpix=%d\n",w_object->peak,w_object->xpos,w_object->ypos,w_object->numpix);*/
+/* End of RJS 2008-09-16 addition */
+
 	    }/* end if threshold exceeded for image[x,y] */
 	}/* end for on x */
     }/* end for on y */
@@ -1734,6 +1780,134 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 
 
 /*
+  ---------------------------------------------------------------------
+  ___  _     _        _     ___ _         _   ___          _   
+ / _ \| |__ (_)___ __| |_  | __(_)_ _  __| | | _ \___ __ _| |__
+| (_) | '_ \| / -_) _|  _| | _|| | ' \/ _` | |  _/ -_) _` | / /
+ \___/|_.__// \___\__|\__| |_| |_|_||_\__,_| |_| \___\__,_|_\_\
+          |__/                                                 
+*/
+/**
+ * This is strongly based on the connect pixel finder, maininly for symmetry and ease of maintenance reasons.
+ * The function being performed here does not absolutely need to use the recursion, but it is a relatively
+ * neat way to do it.
+ * 
+ * This function runs basically the same was as the connected pixel finder except that it looks for
+ * pixels greater then the local peak rather than just any greater than a threshold. It them climbs to
+ * the peak of each source. Essentially it is same as the connected pixel finder but with an adaptive
+ * threshold which is reset to the local max on ever step.
+ * 
+ * Other differences are 
+ *	we do not subtract off the sky background.
+ * 	we do not create the linked list of pixels because we would only have to free it again
+ *	we do not mask pixels to 0.0 once they have been found.
+ * 
+ * This function returns its reults back in w_object, but the meansings are slightly different.
+ * w_object->xpos	Integer X coord of brightest pixel rather than a true centroid.
+ * w_object->ypos	Integer Y coord of brightest pixel rather than a true centroid.
+ * w_object->peak	Counts in peak pixel. Not sky subtracted.
+ * w_object->numpix	Number of steps taken in ascendng to the peak. Not the total number in the object.
+ *
+ * RJS
+ *
+ */
+
+static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Object *w_object)
+{
+  
+  /* ------------- */
+  /* SET VARIABLES */
+  /* ------------- */
+  int x1,y1,cx,cy;     
+  struct Point_Struct *point_list = NULL;
+  struct Point_Struct *last_point = NULL;
+  int point_count=0;
+
+  /* ------------------------------- */
+  /* ADD FIRST POINT TO BE PROCESSED */
+  /* ------------------------------- */
+
+  #if LOGGING > 9
+  Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_Find_Peak: adding point %d,%d to list.",x,y);
+  #endif
+
+  if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
+    return FALSE;
+  
+
+  /* -------------------------------- */
+  /* RUN THROUGH POINTS ON POINT LIST */
+  /* -------------------------------- */
+  while(point_count > 0){
+    
+
+    /* start of per pixel stuff */
+    /* ------------------------ */
+    cx = point_list->x;
+    cy = point_list->y;
+    
+
+    /* if pixel value above current peak */
+    /* ------------------------------ */
+    if (image[(cy*naxis1)+cx] > w_object->peak){     
+      #if LOGGING > 9
+      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_Find_Peak:"
+			"adding pixel %d,%d to object.",cx,cy);
+      #endif
+
+      
+      w_object->peak = image[(cy*naxis1)+cx] ;  
+      w_object->xpos = cx ;
+      w_object->ypos = cy ;
+      w_object->numpix ++;
+
+
+      /* start of recursive stuff */
+      for (x1 = cx-1; x1<=cx+1; x1++){
+	for (y1 = cy-1; y1<=cy+1; y1++){
+	  if (x1 >= naxis1 || y1 >= naxis2 || x1<0 || y1<0)  
+	    continue;                                           /* set a flag here to say crap object? */
+	  if (image[(y1*naxis1)+x1] > w_object->peak){
+	    /* add this point to be processed */
+            #if LOGGING > 9
+	      Object_Log_Format(OBJECT_LOG_BIT_POINT,
+		  	      "Object_Find_Peak:"
+		  	      "adding point %d,%d to list.",x1,y1);
+            #endif
+	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
+	      return FALSE;
+	  }
+	}/* end for on y1 */
+      }/* end for on x1 */
+    }
+
+    /* if already added to object */
+    /* -------------------------- */
+    else {
+      #if LOGGING > 9
+      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_Find_Peak:"
+			"pixel %d,%d already added to object, ignoring.",cx,cy);
+      #endif
+    }
+    
+    /* delete processed point */
+    /* ---------------------- */
+    #if LOGGING > 9
+    Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_Find_Peak:"
+		      "deleting point %d,%d from list.",cx,cy);
+    #endif
+    if(!Point_List_Remove_Head(&point_list,&point_count))
+      return FALSE;
+
+  }/* end while on point list */
+ 
+  return TRUE;
+}
+
+
+
+
+/*
 ---------------------------------------------------------------------
   ___   _      _           _     ___               
  / _ \ | |__  (_) ___  __ | |_  | __|_ _  ___  ___ 
@@ -2628,6 +2802,13 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.7  2008/09/25 13:27:30  eng
+** Fix of memory leak whereby the call to Object_Calculate_FWHM only produced sane
+** results if a mystery 'printf' was added just before or after the function call.
+** The variable 'xy2I' in Object_Calculate_FWHM was uninitialised and the best
+** explanation is that the extra printf happened to push the pointer into the right
+** place. It is initialised now and everything seems to run now.
+**
 ** Revision 1.12.2.6  2008/09/15 13:12:09  eng
 ** Changed fwhm_lt_dia_count --> usable_count
 ** Deleted Object_List_Get

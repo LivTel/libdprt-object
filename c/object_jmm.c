@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.8 2008-09-25 15:30:36 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.9 2008-09-25 16:18:58 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.8 $
+ * @version $Revision: 1.12.2.9 $
  */
 
 
@@ -39,6 +39,11 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.8  2008/09/25 15:30:36  eng
+  Added RJS' Object_Find_Peak to find the local peak of each individual object and
+  then set a local-to-object 1/5th peak threshold (replacing the blanket "thresh2"
+  of earlier versions).
+
   Revision 1.12.2.7  2008/09/25 13:27:30  eng
   Fix of memory leak whereby the call to Object_Calculate_FWHM only produced sane
   results if a mystery 'printf' was added just before or after the function call.
@@ -275,7 +280,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.8 2008-09-25 15:30:36 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.9 2008-09-25 16:18:58 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -337,19 +342,8 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2);
  / _ \| |__ (_) ___  ___| |_    | |   (_)___| |_    / ___| ___| |_ 
 | | | | '_ \| |/ _ \/ __| __|   | |   | / __| __|  | |  _ / _ \ __|
 | |_| | |_) | |  __/ (__| |_    | |___| \__ \ |_   | |_| |  __/ |_ 
- \___/|_.__// |\___|\___|\__|___|_____|_|___/\__|___\____|\___|\__|
-          |__/             |_____|             |_____|             
- _   _               
-| \ | | _____      __
-|  \| |/ _ \ \ /\ / /
-| |\  |  __/\ V  V / 
-|_| \_|\___| \_/\_/  
-
-
-This version expects TWO thresholds (thresh1, thresh2); one high-sigma to use when
-detecting objects, and the other low-sigma to use when getting connected pixels.
-This way we get well sampled objects out to the "wings", but only for bright objects,
-and we don't waste time doing this for every object 1-sig above median.
+ \___/|_.__// |\___|\___|\__|   |_____|_|___/\__|   \____|\___|\__|
+          |__/             
                      
 */
 
@@ -373,19 +367,16 @@ and we don't waste time doing this for every object 1-sig above median.
  * @see #Object_Free
  * @see #Object_Calculate_FWHM
  */
-int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,float thresh1,float thresh2,
-			int npix,Object **first_object,int *sflag,float *seeing,
-			int *initial_count, int *size_count, int *stellar_count, int *usable_count)
+int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float thresh,
+			int npix,Object **first_object,int *sflag,float *seeing)
 {
   Object *w_object = NULL;
   Object *last_object = NULL;
   Object *next_object = NULL;
-  /* HighPixel *curpix = NULL; */
-  float fwhm;
+  float fwhm = 0.0;
+  float thresh2 = 0.0;                      /* individual object 2nd threshold (1/5th peak) to build object */
   int y,x,done,is_stellar;
-/* RJS 2008-09-16 Only new variable I have added */
   int local_peak_x,local_peak_y;	    /* Location of the peak returned by Object_Find_Peak() */
-/* RJS 2008-09-16 End of addition */
   int fwhmarray_size = 0;
   struct sizefwhm *fwhmarray = NULL;        /* array for objects whose fwhm is smaller than its diameter */
   int obj_area;                             /* number of pixels in object */
@@ -394,18 +385,14 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   int mid_posn;                             /* middle position of fwhmarray, to find median */
   int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
   float median_fwhm;                        /* median fwhm obtained from fwhmarray */
-/*   int i;                                    /\* generic counter *\/ */
-/*   int a = 0; */
 
 
-
-  /* Initialise object counters */
-  *initial_count = 0;               /* initial count of all objects */
-  *size_count = 0;                  /* objects bigger than size limit (currently 8 pixels) */
-  *stellar_count = 0;               /* objects with ellipticity below limit (i.e. "stellar") */
-  *usable_count = 0;                /* stellar objects where fwhm < diameter (calculated from size) */
-
-  /* Note therefore that: initial_count > size_count > stellar_count > usable_count */
+  /* Initialise object counters - now internal to this function only as of 1.12.2.9. 
+     Note therefore that: initial_count > size_count > stellar_count > usable_count */
+  int initial_count = 0;               /* initial count of all objects */
+  int size_count = 0;                  /* objects bigger than size limit (currently 8 pixels) */
+  int stellar_count = 0;               /* objects with ellipticity below limit (i.e. "stellar") */
+  int usable_count = 0;                /* stellar objects where fwhm < diameter (calculated from size) */
 
 
 
@@ -470,16 +457,10 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	  /* IF PIXEL ABOVE THRESHOLD -1- */
 	  /* ---------------------------- */
     
-	  
-
-
-	  if(image[(y*naxis1)+x] > thresh1)  
+	  if(image[(y*naxis1)+x] > thresh)  
 	    {
-	      (*initial_count)++;
+	      initial_count++;
 	      w_object = (Object *) malloc(sizeof(Object));
-
-
-
 
 #ifdef MEMORYCHECK
 	      if(w_object == NULL)
@@ -494,7 +475,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 				w_object);
 #endif
 
-
 	      w_object->nextobject=NULL;
 	      w_object->highpixel = NULL;
 	      w_object->last_hp = NULL;
@@ -503,14 +483,10 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		  (*first_object) = w_object;
 		  last_object = w_object;
 
-
-
 #if LOGGING > 10
 		  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
 				    "set first_object to (%p).",(*first_object));
 #endif
-
-
 
 		}
 	      else
@@ -518,9 +494,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 		  last_object->nextobject = w_object;
 		  last_object = w_object;
 		}
-	      w_object->objnum = *initial_count;
-
-
+	      w_object->objnum = initial_count;
 
 
 #if LOGGING > 3
@@ -529,60 +503,76 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #endif
 
 
-
-
-	      /* -------------------------------------------- */
-	      /* GET ALL CONNECTED PIXELS ABOVE THRESHOLD -2- */
-	      /* -------------------------------------------- */
+	      /* --------------------------------------------------------- */
+	      /* GET ALL CONNECTED PIXELS ABOVE LOCAL 1/5th PEAK THRESHOLD */
+	      /* --------------------------------------------------------- */
 	      
-	      /* initialise stats */
+	      /*
+		initialise stats
+		----------------
+	      */
 	      w_object->total=0;
 	      w_object->xpos=0;
 	      w_object->ypos=0;
 	      w_object->peak=0;
 	      w_object->numpix=0;
 
-
-
-
-/* Addition by RJS 2008-09-16 to find the peak and set 1/5 peak threshold */
-	      /*printf("Find peak pixels detection: x,y = %d,%d image_median=%f, thresh1=%f\n",x,y,image_median,thresh1);*/
+	      /*
+		find object peak value
+		----------------------
+	      */
 	      Object_Find_Peak(naxis1,naxis2,x,y,image,w_object);
-	      /*printf("\tpeak = %f, xpos = %f, ypos = %f, numpix=%d\n",w_object->peak,w_object->xpos,w_object->ypos,w_object->numpix);*/
-	      /* Do not reassign x,y to the peak because once we have extracted this source we want to go back to 
-	       * searching from where we left off, so we keep x,y to be where we first found this object. It is however
-	       * much more efficient to start the extraction from the peak, so we create these local_peak_x,local_peak_y
-	       * coords and start from there. */
+
+	      /* 
+		set local peak coordinates
+		--------------------------
+		Do not reassign x,y to the peak because once we have extracted
+		this source we want to go back to searching from where we left
+		off, so we keep x,y to be where we first found this object. It
+		is however much more efficient to start the extraction from the
+		peak, so we create these local_peak_x,local_peak_y coords and
+		start from there.
+	      */
 	      local_peak_x = w_object->xpos;
 	      local_peak_y = w_object->ypos;
-	      thresh2 = image_median + ( (w_object->peak-image_median) / 5); 	/* Object_Find_Peak does not background subtract */
 
-	      /* You must extract at least down to thresh1. Never let thresh2 be above thresh1 otherwise you will
-	       * rediscover this object a second time and extract its halo as a second object after you have extracted
-	       * the core above thresh2 as a first obejct.  */
-	      if (thresh2 > thresh1)
-		thresh2 = thresh1;    
 
-	      /* Reset everything as if we have not run the Object_List_Get_Connected_Pixels() above */
+	      /*
+		set 1/5th peak level
+		--------------------
+		Object_Find_Peak does not background subtract
+	      */
+	      thresh2 = image_median + ( (w_object->peak-image_median) / 5); 
+
+	      
+	      /* 
+		check if thresh2 > thresh
+		-------------------------
+		You must extract at least down to thresh. Never let thresh2 be
+		above thresh otherwise you will rediscover this object a second
+		time and extract its halo as a second object after you have
+		extracted the core above thresh2 as a first obejct.
+	      */
+	      if (thresh2 > thresh)
+		thresh2 = thresh;    
+
+
+	      /* 
+		 reset stats
+		 -----------
+		 as if we have not run the Object_List_Get_Connected_Pixels() above
+	      */
 	      w_object->xpos=0;
 	      w_object->ypos=0;
 	      w_object->peak=0;
 	      w_object->numpix=0;
-	      /*printf("Connected pixels extraction: image_median=%f, thresh2=%f\n",image_median,thresh2);*/
-/* End of addition by RJS 2008-09-16. See also new function Object_Find_Peak() */
-
-
 
 
 	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh2,image,
 						   w_object))
 		{
-		  /* diddly free previous objects */
 		  return FALSE;
 		}
-/* RJS 2008-09-16 Debug output. Can be deleted */
-	      /* printf("\tpeak = %f, xpos = %f, ypos = %f, numpix=%d\n",w_object->peak,w_object->xpos,w_object->ypos,w_object->numpix);*/
-/* End of RJS 2008-09-16 addition */
 
 	    }/* end if threshold exceeded for image[x,y] */
 	}/* end for on x */
@@ -592,7 +582,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",*initial_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",initial_count);
 #endif
 
 
@@ -605,7 +595,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     |_|_|   |_||_\___/ \___/_.__// \___\__|\__/__/
                                |__/               
   */
-  if(*initial_count == 0)
+  if(initial_count == 0)
     {
       (*seeing) = DEFAULT_BAD_SEEING;
       (*sflag) = 1; /* the seeing was fudged. */
@@ -721,7 +711,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
   w_object = (*first_object)->nextobject;
-  *size_count = 1;
+  size_count = 1;
   done = FALSE;
 
 
@@ -749,9 +739,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	}
       else
 	{
-	  (*size_count)++;
+	  size_count++;
 	  last_object->nextobject = w_object;   /* tell last object this is its next object */
-	  w_object->objnum = *size_count;       /* set objects number */
+	  w_object->objnum = size_count;        /* set objects number */
 	  last_object = w_object;               /* set the last object in the list to be this object */
 
 
@@ -793,16 +783,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       w_object = w_object->nextobject;	        /* goto next object */
   }
 #endif
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -861,7 +841,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     /* if object stellar, increment stellar_count */
     /* ------------------------------------------ */
     if(is_stellar)
-      (*stellar_count)++;
+      stellar_count++;
 
     w_object = w_object->nextobject;		
   }
@@ -891,12 +871,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #endif
 
 
-  if(*stellar_count > 0) {
+  if(stellar_count > 0) {
 #if LOGGING > 0
     Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Creating fwhmarray");
 #endif
 
-    fwhmarray = (struct sizefwhm *) malloc((*stellar_count) * sizeof(struct sizefwhm));
+    fwhmarray = (struct sizefwhm *) malloc((stellar_count) * sizeof(struct sizefwhm));
 
     /* populate array of structs from w_object, */
     /* but ONLY IF:                             */
@@ -914,25 +894,25 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
       /* if fwhm < dia & is stellar & fwhm is +ve */
       if ((obj_fwhm < obj_dia) && (w_object->is_stellar == 1) && (obj_fwhm > 0.0)) { 
-	fwhmarray[*usable_count].numpix = obj_area;
-	fwhmarray[*usable_count].fwhm = obj_fwhm;
-	fwhmarray[*usable_count].objnum = w_object->objnum;
-	fwhmarray[*usable_count].xpos = w_object->xpos;
-	fwhmarray[*usable_count].ypos = w_object->ypos;
-	fwhmarray[*usable_count].ellipticity = w_object->ellipticity;
-	(*usable_count)++;                                           /* increment counter of usable objects */
+	fwhmarray[usable_count].numpix = obj_area;
+	fwhmarray[usable_count].fwhm = obj_fwhm;
+	fwhmarray[usable_count].objnum = w_object->objnum;
+	fwhmarray[usable_count].xpos = w_object->xpos;
+	fwhmarray[usable_count].ypos = w_object->ypos;
+	fwhmarray[usable_count].ellipticity = w_object->ellipticity;
+	usable_count++;                                           /* increment counter of usable objects */
       }
 
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,*usable_count);
+      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,usable_count);
 #endif
       w_object = w_object->nextobject;                               /* go to next object */		
     }
       
 
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of usable objects: %d", *usable_count);
+    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of usable objects: %d", usable_count);
 #endif
 
 
@@ -940,13 +920,13 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     /* find median fwhm of top N brightest objects */
     /* in this array                               */
     /* ------------------------------------------- */
-    if ( *usable_count > 0 ){
+    if ( usable_count > 0 ){
 
       /* trim fwhmarray array to exact number of objects (fwhm_lt_dia_count) */
-      fwhmarray = (struct sizefwhm *) realloc(fwhmarray,(*usable_count)*sizeof(struct sizefwhm));
+      fwhmarray = (struct sizefwhm *) realloc(fwhmarray,(usable_count)*sizeof(struct sizefwhm));
       
       /* set standard array size descriptor (necessary for later on) */
-      fwhmarray_size = (int) (*usable_count);
+      fwhmarray_size = (int) (usable_count);
 
 
 #if LOGGING > 0
@@ -1100,9 +1080,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects > %d pixels = %d",npix,*size_count);
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects identified as stellar = %d",*stellar_count);
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of stellar objects with fwhm < dia (\"usable\") = %d",*usable_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects > %d pixels = %d",npix,size_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects identified as stellar = %d",stellar_count);
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of stellar objects with fwhm < dia (\"usable\") = %d",usable_count);
   if ((*sflag)==0)
     {
       Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: seeing derived from stellar sources "
@@ -2802,6 +2782,11 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.8  2008/09/25 15:30:36  eng
+** Added RJS' Object_Find_Peak to find the local peak of each individual object and
+** then set a local-to-object 1/5th peak threshold (replacing the blanket "thresh2"
+** of earlier versions).
+**
 ** Revision 1.12.2.7  2008/09/25 13:27:30  eng
 ** Fix of memory leak whereby the call to Object_Calculate_FWHM only produced sane
 ** results if a mystery 'printf' was added just before or after the function call.

@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.6 2008-09-15 13:12:09 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object_jmm.c,v 1.12.2.7 2008-09-25 13:27:30 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,15 +31,31 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12.2.6 $
+ * @version $Revision: 1.12.2.7 $
  */
 
 
+/*
+  Notes for 1.12.2.7
+  Hunting down the error that causes barfing when all logging is switched off.
 
+*/
 
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12.2.6  2008/09/15 13:12:09  eng
+  Changed fwhm_lt_dia_count --> usable_count
+  Deleted Object_List_Get
+  Added new default FWHM settings in case of bad data
+  Added ellipticity to sizefwhm struct, for diagnostic purposes.
+  In Object_List_Get_New:
+    - Removed fwhmlist
+    - Added stellarity & +ve fwhm to selection for fwhmarray:
+        if ((obj_fwhm < obj_dia) && (w_object->is_stellar == 1) && (obj_fwhm > 0.0))
+  In Object_Calculate_FWHM (sExtractor-adapted-code section):
+    - Added default fwhm settings in case fwhm -ve or sex_d -ve.
+
   Revision 1.12.2.5  2008/09/09 11:08:10  eng
   This is basically the same two-threshold code as before but with a few extra tweaks
   based on/adapted from SExtractor code (not the manual). This uses only the top 80%
@@ -256,7 +272,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.6 2008-09-15 13:12:09 eng Exp $";*/
+/*static char rcsid[] = "$Id: object_jmm.c,v 1.12.2.7 2008-09-25 13:27:30 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -370,6 +386,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
   int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
   float median_fwhm;                        /* median fwhm obtained from fwhmarray */
   int i;                                    /* generic counter */
+  int a = 0;
+
 
 
   /* Initialise object counters */
@@ -443,6 +461,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	  /* IF PIXEL ABOVE THRESHOLD -1- */
 	  /* ---------------------------- */
     
+	  
+
+
 	  if(image[(y*naxis1)+x] > thresh1)  
 	    {
 	      (*initial_count)++;
@@ -463,8 +484,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:allocated w_object (%p).",
 				w_object);
 #endif
-
-
 
 
 	      w_object->nextobject=NULL;
@@ -533,7 +552,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-
   /*
      _  __                  _     _        _      
     (_)/ _|  _ _  ___   ___| |__ (_)___ __| |_ ___
@@ -560,6 +578,8 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     }
 
 
+
+
   /*
                                                _ _       _     _        _      
      _ _ ___ _ __  _____ _____   ____ __  __ _| | |  ___| |__ (_)___ __| |_ ___
@@ -573,7 +593,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-#if LOGGING > 0 
+#if LOGGING > 0
   Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding useful objects.");
 #endif
 
@@ -597,14 +617,13 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 5
       Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(1) at %.2f,%.2f(%d).",
 			w_object->xpos,w_object->ypos,w_object->numpix);
-#endif 
-
-
+#endif
 
 
       next_object = w_object->nextobject;    /* take copy of next object pointer */
       Object_Free(&w_object);                /* delete w_object */
       w_object = next_object;                /* set w_object to next object */
+
       if(w_object == NULL)                   /* if we've reached the end of the list, bail out */
 	done = TRUE;
     }
@@ -642,12 +661,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-
   (*first_object) = w_object;
   w_object->objnum=1;
   last_object = (*first_object);
-
-
 
 
 #if LOGGING > 5
@@ -683,7 +699,6 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
-
 	  Object_Free(&w_object);
 	}
       else
@@ -711,6 +726,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 
 
 
+
   /* -------------------------------------------------- */
   /* EXTRA DEBUG - LIST CONNECTED PIXELS IN ALL OBJECTS */
   /* -------------------------------------------------- */
@@ -731,6 +747,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       w_object = w_object->nextobject;	        /* goto next object */
   }
 #endif
+
+
+
+
+
+
 
 
 
@@ -780,6 +802,9 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
     /* calculate FWHM of object */
     /* ------------------------ */
     Object_Calculate_FWHM(w_object,image_median,&is_stellar,&fwhm);
+
+
+
 #if LOGGING > 5
     Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: "
 		      "object (%d) at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
@@ -893,7 +918,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       for (i=0;i<fwhmarray_size;i++)
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f",
 			  i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm,fwhmarray[i].ellipticity);
-#endif     
+#endif
       
       /* now they're sorted by size, if the number of objects is greater than the maximum
 	 we're going to use to find the median (i.e. the "Top N") then we need to truncate the
@@ -928,12 +953,12 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
       /* otherwise, if fwhmarray_size < MAX_N_FWHM */
       else {
 
-#if LOGGING > 0	
+#if LOGGING > 0
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:");
 #endif
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
-#if LOGGING > 0	
+#if LOGGING > 0
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n[n] (objnum)\tnumpix\tfwhm\txpos\typos\tellip\n-----------------");
 	for (i=0;i<fwhmarray_size;i++)
 	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f\t%f",
@@ -958,7 +983,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 	}
       }
 
-#if LOGGING > 0	
+#if LOGGING > 0
       if ( fwhmarray_size % 2 == 0 ) /* if EVEN */
 	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d,%d] (%d,%d) %f",
 	       lower_mid_posn,upper_mid_posn,
@@ -1031,7 +1056,7 @@ int Object_List_Get_New(float *image,float image_median,int naxis1,int naxis2,fl
 #if LOGGING > 0
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects > %d pixels = %d",npix,*size_count);
   Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects identified as stellar = %d",*stellar_count);
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of stellar objects with fwhm < dia (\"usable\") = %d",*usable_count);  
+  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of stellar objects with fwhm < dia (\"usable\") = %d",*usable_count);
   if ((*sflag)==0)
     {
       Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: seeing derived from stellar sources "
@@ -1936,7 +1961,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
   /* object ellipticity */
   /* ------------------ */
-  float x2I=0,y2I=0,xy2I;         /* running total of offset^2 x intensity in x, y & xy */
+  float x2I=0,y2I=0,xy2I=0;       /* running total of offset^2 x intensity in x, y & xy */
   float x2nd=0,y2nd=0,xy2nd=0;    /* first and second order moments of the ellipse data */
   float xoff=0,yoff=0;            /* offsets from the centre of the object determined by */
                                   /*   the centroid curpix->x = spatial pixel values */
@@ -1986,6 +2011,9 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   float sex_b;
   float sex_fwhm;
 
+  /* for debugging purposes */
+  float xp,yp;
+  int cpx,cpy;
 
 
 
@@ -2013,11 +2041,17 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     2nd moment
     ----------
   */
+
   curpix = w_object->highpixel;
 
   /* new code */
   while(curpix !=NULL)
     {
+      xp = w_object->xpos;
+      yp = w_object->ypos;
+      cpx = curpix->x;
+      cpy = curpix->y;
+
       intensity=(curpix->value);
       xoff=(w_object->xpos)-(curpix->x);
       yoff=(w_object->ypos)-(curpix->y);
@@ -2055,11 +2089,6 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   diff=major-minor;
   ellip = (major-minor)/major;
   w_object->ellipticity = ellip;
-
-  /*   printf("DEBUG: Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f\n", */
-  /* 	 w_object->objnum, */
-  /* 	 major,minor, */
-  /* 	 ellip); */
 
 
 #if LOGGING > 5
@@ -2381,6 +2410,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     w_object->fwhmx = DEFAULT_SEEING_NONSTELLAR;
     w_object->fwhmy = DEFAULT_SEEING_NONSTELLAR;
     (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
+
 #if LOGGING > 5
     Object_Log_Format(OBJECT_LOG_BIT_FWHM,
 		      "Object_Calculate_FWHM: object (%d) is %s, setting FWHM to %f",
@@ -2388,7 +2418,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 #endif
     
   }
-   
+  
 }
 
 
@@ -2598,6 +2628,18 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12.2.6  2008/09/15 13:12:09  eng
+** Changed fwhm_lt_dia_count --> usable_count
+** Deleted Object_List_Get
+** Added new default FWHM settings in case of bad data
+** Added ellipticity to sizefwhm struct, for diagnostic purposes.
+** In Object_List_Get_New:
+**   - Removed fwhmlist
+**   - Added stellarity & +ve fwhm to selection for fwhmarray:
+**       if ((obj_fwhm < obj_dia) && (w_object->is_stellar == 1) && (obj_fwhm > 0.0))
+** In Object_Calculate_FWHM (sExtractor-adapted-code section):
+**   - Added default fwhm settings in case fwhm -ve or sex_d -ve.
+**
 ** Revision 1.12.2.5  2008/09/09 11:08:10  eng
 ** This is basically the same two-threshold code as before but with a few extra tweaks
 ** based on/adapted from SExtractor code (not the manual). This uses only the top 80%

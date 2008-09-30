@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.1 2008-09-30 19:26:27 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.2 2008-09-30 19:42:44 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.1 $
+ * @version $Revision: 1.2 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.1  2008/09/30 19:26:27  eng
+  Initial revision
+
   Revision 1.12.2.10  2008/09/26 12:51:05  eng
   Minor tweaks:
   * altered some default seeing flag names
@@ -200,7 +203,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
-#include "object_jmm.h"
+#include "object.h"
 #include <float.h>
 
 /* for new fwhm */
@@ -297,7 +300,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.1 2008-09-30 19:26:27 eng Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.2 2008-09-30 19:42:44 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -2559,6 +2562,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.1  2008/09/30 19:26:27  eng
+** Initial revision
+**
 ** Revision 1.12.2.10  2008/09/26 12:51:05  eng
 ** Minor tweaks:
 ** * altered some default seeing flag names

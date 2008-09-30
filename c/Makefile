@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.4 2007-05-17 17:38:19 cjm Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.5 2008-09-30 19:49:17 eng Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -16,7 +16,7 @@ BINDIR		= $(LIBDPRT_OBJECT_BIN_HOME)/c/$(HOSTTYPE)
 # 10 per pixel logging
 # 11 some extra memory logging
 # 6 seems about right.
-LOGGINGCFLAGS	= -DLOGGING=6
+LOGGINGCFLAGS	= -DLOGGING=0
 # If you're insane, disable NULL pointer checks
 MEMORYCFLAGS	= -DMEMORYCHECK
 CFLAGS 		= -g $(CCHECKFLAG) -I$(INCDIR) -I$(CFITSIOINCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR) -L$(LT_LIB_HOME) \
@@ -81,6 +81,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.4  2007/05/17 17:38:19  cjm
+# static changes.
+#
 # Revision 1.3  2004/08/06 14:14:29  cjm
 # New makedepend path option.
 #

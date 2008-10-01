@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.2 2008-09-30 19:42:44 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.3 2008-10-01 15:53:36 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.2 $
+ * @version $Revision: 1.3 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.2  2008/09/30 19:42:44  eng
+  changed object_jmm.h to object.h
+
   Revision 1.1  2008/09/30 19:26:27  eng
   Initial revision
 
@@ -229,8 +232,7 @@
 /**
  * Other miscellaneous definitions
  */
-#define STELLAR_ELLIP_LIMIT   (0.3)         /* upper limit of ellipticity for an object to be
-					       classed as 'stellar' */
+#define STELLAR_ELLIP_LIMIT   (0.3)         /* upper limit of ellipticity for an object to be classed as 'stellar' */
 
 #define MAX_N_FWHM            (17)          /* deliberately chosen to be odd */
 #define MAX_N_FWHM_MID        (8)           /* median for 11 items with c-like counting from zero */
@@ -300,7 +302,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.2 2008-09-30 19:42:44 eng Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.3 2008-10-01 15:53:36 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -1073,7 +1075,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
-  } /* end "if any fwhms at all" */
+  } /* end 'if any fwhms at all' */
 
 
 
@@ -1784,6 +1786,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
  \___/|_.__// \___\__|\__| |_| |_|_||_\__,_| |_| \___\__,_|_\_\
           |__/                                                 
 */
+
 /**
  * This is strongly based on the connect pixel finder, maininly for symmetry and ease of maintenance reasons.
  * The function being performed here does not absolutely need to use the recursion, but it is a relatively
@@ -1804,9 +1807,6 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
  * w_object->ypos	Integer Y coord of brightest pixel rather than a true centroid.
  * w_object->peak	Counts in peak pixel. Not sky subtracted.
  * w_object->numpix	Number of steps taken in ascendng to the peak. Not the total number in the object.
- *
- * RJS
- *
  */
 
 static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Object *w_object)
@@ -2562,6 +2562,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.2  2008/09/30 19:42:44  eng
+** changed object_jmm.h to object.h
+**
 ** Revision 1.1  2008/09/30 19:26:27  eng
 ** Initial revision
 **

@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.6 2006-05-25 13:36:53 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.7 2008-10-01 15:54:59 eng Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -114,12 +114,17 @@ typedef struct HighPixel_Struct HighPixel;
  * <li><b>numpix</b> The number of pixels this object covers.
  * <li><b>peak</b> The number of counts above the median for the brightest pixel in the object.
  * <li><b>is_stellar</b> Boolean determining whether the object is stellar or not.
- * <li><b>fwhmx</b> Full width Half Maximum in X in pixels. Only valid if is_stellar is TRUE.
- * <li><b>fwhmy</b> Full width Half Maximum in Y in pixels. Only valid if is_stellar is TRUE.
+ * <li><b>fwhmx</b> Full width Half Maximum in X in pixels. Only valid if is_stellar is TRUE. (See below)
+ * <li><b>fwhmy</b> Full width Half Maximum in Y in pixels. Only valid if is_stellar is TRUE.  (See below)
+ * <li><b>ellipticity</b> A simple ellipticity measure. (A-B)/A.  (See below)
  * <li><b>nextobject</b> A pointer to the next object in the (linked) list.
  * <li><b>highpixel</b> A pointer to a linked list of pixels in the object.
  * <li><b>last_hp</b> A pointer to the end element in the highpixel list.
  * </ul>
+ * When using the SExtractor-derived half-flux-radius method of FWHM measures, then both
+ * fhhmx and fwhmy will be the same and simly be the object fwhm. Separate values are not
+ * returned. The ellipticity value is still valid because A,B are derived internally in the 
+ * code.
  */
 struct Object_Struct
 {
@@ -132,6 +137,7 @@ struct Object_Struct
 	int is_stellar;
 	float fwhmx;
 	float fwhmy;
+	float ellipticity;
 	struct Object_Struct *nextobject;
 	HighPixel *highpixel;
 	HighPixel *last_hp;

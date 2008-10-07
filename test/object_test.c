@@ -29,7 +29,7 @@
 
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.4 2008-10-07 15:56:04 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.5 2008-10-07 16:26:30 eng Exp $
 */
 
 
@@ -50,6 +50,9 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.4  2008/10/07 15:56:04  eng
+  Based on object_test_jmm.c version 1.5
+
   Revision 1.5  2008/06/03 15:03:03  eng
   Checked in by JMM in preparation for a branching of version 1.4. Just wanted
   to save what was done up to this point.
@@ -112,7 +115,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test.c,v 1.4 2008-10-07 15:56:04 eng Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.5 2008-10-07 16:26:30 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -225,8 +228,7 @@ int main(int argc, char *argv[])
   if (verbose)
     fprintf(stdout,"object_test: running object detection....\n");
   clock_gettime(CLOCK_REALTIME,&start_time);
-  retval = Object_List_Get(Image_Data,Median,Naxis1,Naxis2,thresh,8,&object_list,&seeing_flag,&seeing,
-			   &obj_count_init,&obj_count_size,&obj_count_stellar,&obj_count_dia);
+  retval = Object_List_Get(Image_Data,Median,Naxis1,Naxis2,thresh,8,&object_list,&seeing_flag,&seeing);
   clock_gettime(CLOCK_REALTIME,&stop_time);
   if(retval == FALSE){
     Object_Error();
@@ -237,39 +239,8 @@ int main(int argc, char *argv[])
      ------------------------------------------------- */
   if (verbose){
     fprintf(stdout,"object_test: The procedure took %d ms.\n",difftimems(start_time,stop_time));
-    fprintf(stdout,"object_test: Object counts: %d initial, %d above minimum size limit, %d stellar, %d sane FWHM\n",
-	    obj_count_init, obj_count_size, obj_count_stellar, obj_count_dia);
     fprintf(stdout,"object_test: The seeing was %.2f pixels (%.2f arcsec) with seeing_flag = %d (0 is good).\n",
 	    seeing,seeing*PixelScale,seeing_flag);
-
-/*     fprintf(stdout,"objnum\txpos\typos\tfwhm\tmf_k\tmf_a\tmf_b\ttotal\tnumpix\tpeak\n"); */
-/*     object = object_list; */
-/*     while(object != NULL){ */
-/*       peak_abs = object->peak + Median; */
-
-/*       fprintf(stdout,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n", */
-/* 	      object->objnum, */
-/* 	      object->xpos,object->ypos, */
-/* 	      object->fwhmx,                                                 /\* fwhmx = fwhmy = fwhm *\/ */
-/* 	      object->moffat_k,object->moffat_a,object->moffat_b, */
-/* 	      object->total, */
-/* 	      object->numpix, */
-/* 	      peak_abs); */
-
-/*       fprintf(fPtr,"%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%d\t%.4f\n", */
-/* 	      object->objnum, */
-/* 	      object->xpos,object->ypos, */
-/* 	      object->fwhmx,                                                 /\* fwhmx = fwhmy = fwhm *\/ */
-/* 	      object->moffat_k,object->moffat_a,object->moffat_b, */
-/* 	      object->total, */
-/* 	      object->numpix, */
-/* 	      peak_abs); */
-
-    
-/*       object = object->nextobject; */
-/*     } */
-
-
   }
 
   /*
@@ -830,6 +801,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.4  2008/10/07 15:56:04  eng
+** Based on object_test_jmm.c version 1.5
+**
 ** Revision 1.5  2008/06/03 15:03:03  eng
 ** Checked in by JMM in preparation for a branching of version 1.4. Just wanted
 ** to save what was done up to this point.

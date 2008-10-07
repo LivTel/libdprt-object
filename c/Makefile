@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.5 2008-09-30 19:49:17 eng Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.6 2008-10-07 12:58:52 eng Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -16,7 +16,7 @@ BINDIR		= $(LIBDPRT_OBJECT_BIN_HOME)/c/$(HOSTTYPE)
 # 10 per pixel logging
 # 11 some extra memory logging
 # 6 seems about right.
-LOGGINGCFLAGS	= -DLOGGING=0
+LOGGINGCFLAGS	= -DLOGGING=6
 # If you're insane, disable NULL pointer checks
 MEMORYCFLAGS	= -DMEMORYCHECK
 CFLAGS 		= -g $(CCHECKFLAG) -I$(INCDIR) -I$(CFITSIOINCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR) -L$(LT_LIB_HOME) \
@@ -81,6 +81,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.5  2008/09/30 19:49:17  eng
+# Switched off debug. Set LOGGING level to 0.
+#
 # Revision 1.4  2007/05/17 17:38:19  cjm
 # static changes.
 #
@@ -97,28 +100,26 @@ backup: tidy
 #
 # DO NOT DELETE
 
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2.2/include/stdarg.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/stdio.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/features.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/sys/cdefs.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/gnu/stubs.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/lib/gcc-lib/i386-redhat-linux/3.2.2/include/stddef.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/types.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/wordsize.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/typesizes.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/libio.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/_G_config.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/wchar.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/wchar.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/gconv.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/stdio_lim.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/sys_errlist.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/stdlib.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/string.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/math.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/huge_val.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/mathdef.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/mathcalls.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/time.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /usr/include/bits/time.h
-/home/dev/bin/libdprt/object/c/i386-linux/object.o: /home/dev/src/libdprt/object/include/object.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/stdarg.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/stdarg_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/va_list.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/stdio.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/stdio_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/feature_tests.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/isa_defs.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/stdio_tag.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/stdio_impl.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/stdlib.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/stdlib_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/string.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/string_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/math.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/math_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/time.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/types.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/machtypes.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/int_types.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/iso/time_iso.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/sys/time_impl.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /space/home/dev/src/libdprt/object/include/object.h
+/space/home/dev/bin/libdprt/object/c/sun4/object.o: /usr/include/float.h

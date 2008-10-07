@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.3 2008-10-01 15:53:36 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.4 2008-10-07 12:57:32 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.3 $
+ * @version $Revision: 1.4 $
  */
 
 
@@ -39,6 +39,11 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.3  2008/10/01 15:53:36  eng
+  Some invisible non-printing character was preventing compilation with error
+  syntax error: line 1810, token = " ", char = '270'
+  I fixed it by deleteing a couple of apparently blank lines.
+
   Revision 1.2  2008/09/30 19:42:44  eng
   changed object_jmm.h to object.h
 
@@ -302,7 +307,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.3 2008-10-01 15:53:36 eng Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.4 2008-10-07 12:57:32 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -399,6 +404,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   Object *w_object = NULL;
   Object *last_object = NULL;
   Object *next_object = NULL;
+  HighPixel *curpix;
   float fwhm = 0.0;
   float thresh2 = 0.0;                      /* individual object 2nd threshold (1/5th peak) to build object */
   int y,x,done,is_stellar;
@@ -2562,6 +2568,11 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.3  2008/10/01 15:53:36  eng
+** Some invisible non-printing character was preventing compilation with error
+** syntax error: line 1810, token = " ", char = '270'
+** I fixed it by deleteing a couple of apparently blank lines.
+**
 ** Revision 1.2  2008/09/30 19:42:44  eng
 ** changed object_jmm.h to object.h
 **

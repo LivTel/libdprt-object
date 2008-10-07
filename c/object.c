@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.5 2008-10-07 13:17:59 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.6 2008-10-07 13:55:32 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.5 $
+ * @version $Revision: 1.6 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.5  2008/10/07 13:17:59  cjm
+  Changed some pixel logging from OBJECT to PIXEL bit.
+
   Revision 1.4  2008/10/07 12:57:32  eng
   Added HighPixel *curpix; (jmm)
 
@@ -310,7 +313,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.5 2008-10-07 13:17:59 cjm Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.6 2008-10-07 13:55:32 cjm Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -1719,7 +1722,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
       /* end of per-pixel stuff: do some overall w_object stats */
       curpix = w_object->last_hp;
 
-/*       w_object->total=(w_object->total)+(temp_hp->value); */
+       w_object->total=(w_object->total)+(temp_hp->value);
 /*       w_object->xpos=(w_object->xpos)+((temp_hp->x)*(temp_hp->value));  */
 /*       w_object->ypos=(w_object->ypos)+((temp_hp->y)*(temp_hp->value)); */
 
@@ -2571,6 +2574,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.5  2008/10/07 13:17:59  cjm
+** Changed some pixel logging from OBJECT to PIXEL bit.
+**
 ** Revision 1.4  2008/10/07 12:57:32  eng
 ** Added HighPixel *curpix; (jmm)
 **

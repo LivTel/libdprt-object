@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.4 2008-10-07 12:57:32 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.5 2008-10-07 13:17:59 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.4 $
+ * @version $Revision: 1.5 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.4  2008/10/07 12:57:32  eng
+  Added HighPixel *curpix; (jmm)
+
   Revision 1.3  2008/10/01 15:53:36  eng
   Some invisible non-printing character was preventing compilation with error
   syntax error: line 1810, token = " ", char = '270'
@@ -307,7 +310,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.4 2008-10-07 12:57:32 eng Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.5 2008-10-07 13:17:59 cjm Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -804,12 +807,12 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   w_object = (*first_object);
   while(w_object != NULL)
   {
-    Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: Printing pixels for object %d at %.2f,%.2f(%d).",
+    Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get: Printing pixels for object %d at %.2f,%.2f(%d).",
 		      w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
     curpix = w_object->highpixel;
     while(curpix != NULL)
       {
-	Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: Printing pixels:object:%d pixel %d,%d value %.2f.",
+	Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get: Printing pixels:object:%d pixel %d,%d value %.2f.",
 		      w_object->objnum,curpix->x,curpix->y,curpix->value);
 	 curpix = curpix->next_pixel;           /* goto next pixel */
       }
@@ -2568,6 +2571,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.4  2008/10/07 12:57:32  eng
+** Added HighPixel *curpix; (jmm)
+**
 ** Revision 1.3  2008/10/01 15:53:36  eng
 ** Some invisible non-printing character was preventing compilation with error
 ** syntax error: line 1810, token = " ", char = '270'

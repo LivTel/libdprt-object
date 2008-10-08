@@ -29,7 +29,7 @@
 
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.6 2008-10-08 10:07:45 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.7 2008-10-08 10:30:46 eng Exp $
 */
 
 
@@ -50,6 +50,9 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.6  2008/10/08 10:07:45  eng
+  Added object loop to find brightest object & print result.
+
   Revision 1.5  2008/10/07 16:26:30  eng
   Removed 'count' arguments from Object_List_Get function call.
 
@@ -118,7 +121,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test.c,v 1.6 2008-10-08 10:07:45 eng Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.7 2008-10-08 10:30:46 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -145,6 +148,7 @@ static int fltcmp(const void *v1, const void *v2);
 int main(int argc, char *argv[])
 {
   Object *object_list = NULL;
+  Object *tmp_object = NULL;
   Object *object = NULL;
   struct timespec start_time,stop_time;
   int seeing_flag;
@@ -247,16 +251,16 @@ int main(int argc, char *argv[])
   brightest_x = 0.0;
   brightest_y = 0.0;
   brightest_count = 0.0;
-  while (object_list != NULL){
-    bc = object_list->total;
+  tmp_object = object_list; /* loop through this copy & leave object_list itself alone */
+  while (tmp_object != NULL){
+    bc = tmp_object->total;
     if (bc > brightest_count){
       brightest_count = bc;
-      brightest_x = object_list->xpos;
-      brightest_y = object_list->ypos;
+      brightest_x = tmp_object->xpos;
+      brightest_y = tmp_object->ypos;
     }
-    object_list = object_list->nextobject;
+    tmp_object = tmp_object->nextobject;
   }
-
 
 
   /* ----------------- */
@@ -828,6 +832,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.6  2008/10/08 10:07:45  eng
+** Added object loop to find brightest object & print result.
+**
 ** Revision 1.5  2008/10/07 16:26:30  eng
 ** Removed 'count' arguments from Object_List_Get function call.
 **

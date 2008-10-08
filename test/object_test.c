@@ -29,7 +29,7 @@
 
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.5 2008-10-07 16:26:30 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.6 2008-10-08 10:07:45 eng Exp $
 */
 
 
@@ -50,6 +50,9 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.5  2008/10/07 16:26:30  eng
+  Removed 'count' arguments from Object_List_Get function call.
+
   Revision 1.4  2008/10/07 15:56:04  eng
   Based on object_test_jmm.c version 1.5
 
@@ -115,7 +118,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test.c,v 1.5 2008-10-07 16:26:30 eng Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.6 2008-10-08 10:07:45 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -154,6 +157,8 @@ int main(int argc, char *argv[])
   float BGSD_factor;
   float peak_abs;
   float fwhmx2,fwhmy2;
+  float bx,by,bc;
+  float brightest_x,brightest_y,brightest_count;
 
 
   /* TEST ONLY   */
@@ -235,12 +240,34 @@ int main(int argc, char *argv[])
     return 4;
   }
 
-  /* print out time taken & column headers for results
-     ------------------------------------------------- */
+
+  /* --------------------------------- */
+  /* FIND BRIGHTEST OBJECT COORDINATES */
+  /* --------------------------------- */
+  brightest_x = 0.0;
+  brightest_y = 0.0;
+  brightest_count = 0.0;
+  while (object_list != NULL){
+    bc = object_list->total;
+    if (bc > brightest_count){
+      brightest_count = bc;
+      brightest_x = object_list->xpos;
+      brightest_y = object_list->ypos;
+    }
+    object_list = object_list->nextobject;
+  }
+
+
+
+  /* ----------------- */
+  /* PRINT OUT RESULTS */
+  /* ----------------- */
   if (verbose){
     fprintf(stdout,"object_test: The procedure took %d ms.\n",difftimems(start_time,stop_time));
     fprintf(stdout,"object_test: The seeing was %.2f pixels (%.2f arcsec) with seeing_flag = %d (0 is good).\n",
 	    seeing,seeing*PixelScale,seeing_flag);
+    fprintf(stdout,"object_test: The brightest object was at %.2f,%.2f with %.2f counts.\n",
+	    brightest_x,brightest_y,brightest_count);
   }
 
   /*
@@ -801,6 +828,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.5  2008/10/07 16:26:30  eng
+** Removed 'count' arguments from Object_List_Get function call.
+**
 ** Revision 1.4  2008/10/07 15:56:04  eng
 ** Based on object_test_jmm.c version 1.5
 **

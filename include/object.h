@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.7 2008-10-01 15:54:59 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.8 2009-01-28 14:18:54 cjm Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -157,13 +157,19 @@ extern void Object_Error_To_String(char *error_string);
 extern int Object_Get_Error_Number(void);
 extern void Object_Warning(void);
 extern void Object_Get_Current_Time_String(char *time_string,int string_length);
-extern void Object_Log_Format(int level,char *format,...);
-extern void Object_Log(int level,char *string);
-extern void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string));
-extern void Object_Set_Log_Filter_Function(int (*filter_fn)(int level));
-extern void Object_Log_Handler_Stdout(int level,char *string);
+extern void Object_Log_Format(char *sub_system,char *source_filename,char *function,int level,char *category,
+			      char *format,...);
+extern void Object_Log(char *sub_system,char *source_filename,char *function,int level,char *category,char *string);
+extern void Object_Set_Log_Handler_Function(void (*log_fn)(char *sub_system,char *source_filename,char *function,
+							   int level,char *category,char *string));
+extern void Object_Set_Log_Filter_Function(int (*filter_fn)(char *sub_system,char *source_filename,char *function,
+							    int level,char *category));
+extern void Object_Log_Handler_Stdout(char *sub_system,char *source_filename,char *function,int level,char *category,
+				      char *string);
 extern void Object_Set_Log_Filter_Level(int level);
-extern int Object_Log_Filter_Level_Absolute(int level);
-extern int Object_Log_Filter_Level_Bitwise(int level);
+extern int Object_Log_Filter_Level_Absolute(char *sub_system,char *source_filename,char *function,int level,
+					    char *category);
+extern int Object_Log_Filter_Level_Bitwise(char *sub_system,char *source_filename,char *function,int level,
+					   char *category);
 
 #endif

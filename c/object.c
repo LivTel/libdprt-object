@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.6 2008-10-07 13:55:32 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.7 2009-01-28 14:18:53 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.6 $
+ * @version $Revision: 1.7 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.6  2008/10/07 13:55:32  cjm
+  Fixed object total counts measure by uncommenting increment.
+
   Revision 1.5  2008/10/07 13:17:59  cjm
   Changed some pixel logging from OBJECT to PIXEL bit.
 
@@ -300,8 +303,8 @@ struct sizefwhm
  */
 struct Log_Struct
 {
-  void (*Log_Handler)(int level,char *string);
-  int (*Log_Filter)(int level);
+  void (*Log_Handler)(char *sub_system,char *source_filename,char *function,int level,char *category,char *string);
+  int (*Log_Filter)(char *sub_system,char *source_filename,char *function,int level,char *category);
   int Log_Filter_Level;
 };
 
@@ -313,7 +316,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.6 2008-10-07 13:55:32 cjm Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.7 2009-01-28 14:18:53 cjm Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -474,7 +477,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 */
 
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Searching for objects.");
+  Object_Log("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Searching for objects.");
 #endif
 
 
@@ -489,7 +492,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	{
 
 #if LOGGING > 9
-	  Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get:searching pixel %d,%d.",x,y);
+	  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_PIXEL,NULL,
+			    "searching pixel %d,%d.",x,y);
 #endif
 
 	  /* ---------------------------- */
@@ -510,8 +514,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		}
 #endif
 #if LOGGING > 10
-	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:allocated w_object (%p).",
-				w_object);
+	      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+				"allocated w_object (%p).",w_object);
 #endif
 
 	      w_object->nextobject=NULL;
@@ -523,7 +527,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		  last_object = w_object;
 
 #if LOGGING > 10
-		  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
+		  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
 				    "set first_object to (%p).",(*first_object));
 #endif
 
@@ -537,7 +541,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 3
-	      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:"
+	      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
 				"found start of object at %d,%d.",x,y);
 #endif
 
@@ -621,7 +625,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Found %d objects.",initial_count);
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Found %d objects.",
+		    initial_count);
 #endif
 
 
@@ -669,7 +674,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get:Finding useful objects.");
+  Object_Log("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Finding useful objects.");
 #endif
 
 
@@ -690,7 +695,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 5
-      Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get:deleting object(1) at %.2f,%.2f(%d).",
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+			"deleting object(1) at %.2f,%.2f(%d).",
 			w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
 
@@ -730,8 +736,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 10
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: first_object (%p) set from w_object (%p).",
-		    (*first_object),w_object);
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+		    "first_object (%p) set from w_object (%p).",(*first_object),w_object);
 #endif
 
 
@@ -742,7 +748,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 5
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: object %d at %.2f,%.2f(%d) is ok(1).",
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+		    "object %d at %.2f,%.2f(%d) is ok(1).",
 		    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
 
@@ -768,7 +775,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: deleting object(2) at %.2f,%.2f(%d).",
+	  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+			    "deleting object(2) at %.2f,%.2f(%d).",
 			    w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
 
@@ -787,7 +795,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 5
-	  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: object %d at %.2f,%.2f(%d) is ok(2).",
+	  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+			    "object %d at %.2f,%.2f(%d) is ok(2).",
 			    w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
 #endif
 
@@ -810,13 +819,15 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   w_object = (*first_object);
   while(w_object != NULL)
   {
-    Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get: Printing pixels for object %d at %.2f,%.2f(%d).",
+    Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_PIXEL,NULL,
+		      "Printing pixels for object %d at %.2f,%.2f(%d).",
 		      w_object->objnum,w_object->xpos,w_object->ypos,w_object->numpix);
     curpix = w_object->highpixel;
     while(curpix != NULL)
       {
-	Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get: Printing pixels:object:%d pixel %d,%d value %.2f.",
-		      w_object->objnum,curpix->x,curpix->y,curpix->value);
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_PIXEL,NULL,
+			  "Printing pixels:object:%d pixel %d,%d value %.2f.",
+			  w_object->objnum,curpix->x,curpix->y,curpix->value);
 	 curpix = curpix->next_pixel;           /* goto next pixel */
       }
       w_object = w_object->nextobject;	        /* goto next object */
@@ -839,7 +850,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   */
   
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Finding FWHM of objects.");
+  Object_Log("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Finding FWHM of objects.");
 #endif
 
 
@@ -848,8 +859,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* ---------------- */
   w_object = (*first_object);
 #if LOGGING > 10
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_List_Get: w_object (%p) set from first_object (%p).",
-		    w_object,(*first_object));
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_OBJECT,NULL,
+		    "w_object (%p) set from first_object (%p).",w_object,(*first_object));
 #endif
 
 
@@ -859,7 +870,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* --------------------------- */
   while(w_object != NULL){
 #if LOGGING > 5
-    Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: Calculating FWHM for object (%d) at %.2f,%.2f.",
+    Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_FWHM,NULL,
+		      "Calculating FWHM for object (%d) at %.2f,%.2f.",
 		      w_object->objnum,w_object->xpos,w_object->ypos);
 #endif
     
@@ -871,7 +883,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 5
-    Object_Log_Format(OBJECT_LOG_BIT_FWHM,"Object_List_Get: "
+    Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_FWHM,NULL,
 		      "object (%d) at %.2f,%.2f has FWHM %.2f pixels and is_stellar = %d.",
 		      w_object->objnum,w_object->xpos,w_object->ypos,fwhm,is_stellar);
 #endif
@@ -905,14 +917,15 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* If any stellar objects at all */
   /* ----------------------------- */
 #if LOGGING > 0
-  Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Calculating final seeing.");
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Number of stellar objects: %d", stellar_count);
+  Object_Log("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Calculating final seeing.");
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		    "Number of stellar objects: %d", stellar_count);
 #endif
 
 
   if(stellar_count > 0) {
 #if LOGGING > 0
-    Object_Log(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Creating fwhmarray");
+    Object_Log("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Creating fwhmarray");
 #endif
 
     fwhmarray = (struct sizefwhm *) malloc((stellar_count) * sizeof(struct sizefwhm));
@@ -944,14 +957,16 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,usable_count);
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			"Object %d\t%f\t%f\t(%d)",w_object->objnum,obj_fwhm,obj_dia,usable_count);
 #endif
       w_object = w_object->nextobject;                               /* go to next object */		
     }
       
 
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Number of usable objects: %d", usable_count);
+    Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		      "Number of usable objects: %d", usable_count);
 #endif
 
 
@@ -969,9 +984,10 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"original object list\n[n] (objnum)\tnumpix\tfwhm\tellip\n--------------------");
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			"original object list\n[n] (objnum)\tnumpix\tfwhm\tellip\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f",
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"[%d] (%d)\t%d\t%f\t%f",
 			  i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm,fwhmarray[i].ellipticity);
 #endif
 
@@ -979,9 +995,10 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_numpix);
 
 #if LOGGING > 0
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by numpix\n[n] (objnum)\tnumpix\tfwhm\tellip\n--------------------");
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			"sorted by numpix\n[n] (objnum)\tnumpix\tfwhm\tellip\n--------------------");
       for (i=0;i<fwhmarray_size;i++)
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"[%d] (%d)\t%d\t%f\t%f",
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"[%d] (%d)\t%d\t%f\t%f",
 			  i,fwhmarray[i].objnum,fwhmarray[i].numpix,fwhmarray[i].fwhm,fwhmarray[i].ellipticity);
 #endif
       
@@ -995,15 +1012,17 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	fwhmarray_size = MAX_N_FWHM;
 	
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N > MAX_N_FWHM:");
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"N > MAX_N_FWHM:");
 #endif
 
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"truncated & sorted by fwhm\n[n] (objnum)\tnumpix\tfwhm\txpos\typos\tellip\n--------------------");
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		 "truncated & sorted by fwhm\n[n] (objnum)\tnumpix\tfwhm\txpos\typos\tellip\n--------------------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f\t%f",
+	  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			    "fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f\t%f",
 			    i,fwhmarray[i].objnum,
 			    fwhmarray[i].numpix,fwhmarray[i].fwhm,
 			    fwhmarray[i].xpos,fwhmarray[i].ypos,
@@ -1022,14 +1041,16 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       else {
 
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"N < MAX_N_FWHM:");
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"N < MAX_N_FWHM:");
 #endif
 	/* sort array by 2nd struct member (fwhm) SMALLEST FIRST */
 	qsort (fwhmarray, fwhmarray_size, sizeof(struct sizefwhm), sizefwhm_cmp_by_fwhm);
 #if LOGGING > 0
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"sorted by FWHM\n[n] (objnum)\tnumpix\tfwhm\txpos\typos\tellip\n-----------------");
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			  "sorted by FWHM\n[n] (objnum)\tnumpix\tfwhm\txpos\typos\tellip\n-----------------");
 	for (i=0;i<fwhmarray_size;i++)
-	  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f\t%f",
+	  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			    "fwhmsort: [%d] (%d)\t%d\t%f\t%f\t%f\t%f",
 			    i,fwhmarray[i].objnum,
 			    fwhmarray[i].numpix,fwhmarray[i].fwhm,
 			    fwhmarray[i].xpos,fwhmarray[i].ypos,
@@ -1053,12 +1074,14 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 #if LOGGING > 0
       if ( fwhmarray_size % 2 == 0 ) /* if EVEN */
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d,%d] (%d,%d) %f",
-	       lower_mid_posn,upper_mid_posn,
-	       fwhmarray[lower_mid_posn].objnum,fwhmarray[upper_mid_posn].objnum,
-	       median_fwhm);
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			  "median_fwhm = [%d,%d] (%d,%d) %f",
+			  lower_mid_posn,upper_mid_posn,
+			  fwhmarray[lower_mid_posn].objnum,fwhmarray[upper_mid_posn].objnum,
+			  median_fwhm);
       else /* if ODD */
-	Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"median_fwhm = [%d] (%d) %f",
+	Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			  "median_fwhm = [%d] (%d) %f",
 			  mid_posn,fwhmarray[mid_posn].objnum,median_fwhm);
 #endif
 
@@ -1095,7 +1118,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* ------------------ */
   else {
 #if LOGGING > 0
-    Object_Log_Format(OBJECT_LOG_BIT_GENERAL,
+    Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
 			"No objects found - defaulting seeing to BAD_SEEING");
 #endif
     (*seeing) = DEFAULT_BAD_SEEING;                  /* set the seeing to DEFAULT_BAD_SEEING (pixels) */
@@ -1112,17 +1135,20 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 #if LOGGING > 0
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects > %d pixels = %d",npix,size_count);
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of objects identified as stellar = %d",stellar_count);
-  Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: number of stellar objects with fwhm < dia (\"usable\") = %d",usable_count);
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		    "number of objects > %d pixels = %d",npix,size_count);
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		    "number of objects identified as stellar = %d",stellar_count);
+  Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+		    "number of stellar objects with fwhm < dia (\"usable\") = %d",usable_count);
   if ((*sflag)==0)
     {
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: seeing derived from stellar sources "
-			"= %.2f pixels.",(*seeing));
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,
+			"seeing derived from stellar sources = %.2f pixels.",(*seeing));
     }
   else
     {
-      Object_Log_Format(OBJECT_LOG_BIT_GENERAL,"Object_List_Get: Unable to derive seeing, "
+      Object_Log_Format("object","object.c","Object_List_Get",OBJECT_LOG_BIT_GENERAL,NULL,"Unable to derive seeing, "
 			"faking result = %.2f pixels.",(*seeing));
     }
 #endif
@@ -1355,15 +1381,19 @@ void Object_Get_Current_Time_String(char *time_string,int string_length)
  * and uses vsprintf to format them i.e. like fprintf. The Global_Buff is used to hold the created string,
  * therefore the total length of the generated string should not be longer than OBJECT_ERROR_STRING_LENGTH.
  * Object_Log is then called to handle the log message.
- * @param level An integer, used to decide whether this particular message has been selected for
- * 	logging or not.
+ * @param sub_system The sub system. Can be NULL.
+ * @param source_file The source filename. Can be NULL.
+ * @param function The function calling the log. Can be NULL.
+ * @param level At what level is the log message (TERSE/high level or VERBOSE/low level), 
+ *         a valid member of LOG_VERBOSITY.
+ * @param category What sort of information is the message. Designed to be used as a filter. Can be NULL.
  * @param format A string, with formatting statements the same as fprintf would use to determine the type
  * 	of the following arguments.
  * @see #Object_Log
  * @see #Object_Buff
  * @see #OBJECT_ERROR_STRING_LENGTH
  */
-void Object_Log_Format(int level,char *format,...)
+void Object_Log_Format(char *sub_system,char *source_filename,char *function,int level,char *category,char *format,...)
 {
   va_list ap;
 
@@ -1377,7 +1407,7 @@ void Object_Log_Format(int level,char *format,...)
   /* If there's a log filter, check it returns TRUE for this message */
   if(Log_Data.Log_Filter != NULL)
     {
-      if(Log_Data.Log_Filter(level) == FALSE)
+      if(Log_Data.Log_Filter(sub_system,source_filename,function,level,category) == FALSE)
 	return;
     }
   /* format the arguments */
@@ -1385,7 +1415,7 @@ void Object_Log_Format(int level,char *format,...)
   vsprintf(Object_Buff,format,ap);
   va_end(ap);
   /* call the log routine to log the results */
-  Object_Log(level,Object_Buff);
+  Object_Log(sub_system,source_filename,function,level,category,Object_Buff);
 }
 
 
@@ -1403,12 +1433,16 @@ void Object_Log_Format(int level,char *format,...)
  * Routine to log a message to a defined logging mechanism. If the string or Log_Data.Log_Handler are NULL
  * the routine does not log the message. If the Log_Data.Log_Filter function pointer is non-NULL, the
  * message is passed to it to determoine whether to log the message.
- * @param level An integer, used to decide whether this particular message has been selected for
- * 	logging or not.
+ * @param sub_system The sub system. Can be NULL.
+ * @param source_file The source filename. Can be NULL.
+ * @param function The function calling the log. Can be NULL.
+ * @param level At what level is the log message (TERSE/high level or VERBOSE/low level), 
+ *         a valid member of LOG_VERBOSITY.
+ * @param category What sort of information is the message. Designed to be used as a filter. Can be NULL.
  * @param string The message to log.
  * @see #Log_Data
  */
-void Object_Log(int level,char *string)
+void Object_Log(char *sub_system,char *source_filename,char *function,int level,char *category,char *string)
 {
   /* If the string is NULL, don't log. */
   if(string == NULL)
@@ -1419,11 +1453,11 @@ void Object_Log(int level,char *string)
   /* If there's a log filter, check it returns TRUE for this message */
   if(Log_Data.Log_Filter != NULL)
     {
-      if(Log_Data.Log_Filter(level) == FALSE)
+      if(Log_Data.Log_Filter(sub_system,source_filename,function,level,category) == FALSE)
 	return;
     }
   /* We can log the message */
-  (*Log_Data.Log_Handler)(level,string);
+  (*Log_Data.Log_Handler)(sub_system,source_filename,function,level,category,string);
 }
 
 
@@ -1447,7 +1481,8 @@ void Object_Log(int level,char *string)
  * @see #Log_Data
  * @see #Object_Log
  */
-void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string))
+void Object_Set_Log_Handler_Function(void (*log_fn)(char *sub_system,char *source_filename,char *function,
+						    int level,char *category,char *string))
 {
   Log_Data.Log_Handler = log_fn;
 }
@@ -1473,7 +1508,8 @@ void Object_Set_Log_Handler_Function(void (*log_fn)(int level,char *string))
  * @see #Log_Data
  * @see #Object_Log
  */
-void Object_Set_Log_Filter_Function(int (*filter_fn)(int level))
+void Object_Set_Log_Filter_Function(int (*filter_fn)(char *sub_system,char *source_filename,char *function,
+						     int level,char *category))
 {
   Log_Data.Log_Filter = filter_fn;
 }
@@ -1498,18 +1534,24 @@ void Object_Set_Log_Filter_Function(int (*filter_fn)(int level))
 /**
  * A log handler to be used for the Log_Handler function.
  * Just prints the message to stdout, terminated by a newline.
- * @param level The log level for this message.
+ * @param sub_system The sub system. Can be NULL.
+ * @param source_file The source filename. Can be NULL.
+ * @param function The function calling the log. Can be NULL.
+ * @param level At what level is the log message (TERSE/high level or VERBOSE/low level), 
+ *         a valid member of LOG_VERBOSITY.
+ * @param category What sort of information is the message. Designed to be used as a filter. Can be NULL.
  * @param string The log message to be logged. 
  * @see #Log_Handler
  */
-void Object_Log_Handler_Stdout(int level,char *string)
+void Object_Log_Handler_Stdout(char *sub_system,char *source_filename,char *function,
+			       int level,char *category,char *string)
 {
   char time_string[32];
 
   if(string == NULL)
     return;
   Object_Get_Current_Time_String(time_string,32);
-  fprintf(stdout,"%s %s\n",time_string,string);
+  fprintf(stdout,"%s %s:%s\n",time_string,function,string);
 }
 
 
@@ -1556,12 +1598,17 @@ void Object_Set_Log_Filter_Level(int level)
 */
 /**
  * A log message filter routine, to be used for Log_Data.Log_Filter function pointer.
- * @param level The log level of the message to be tested.
+ * @param sub_system The sub system. Can be NULL.
+ * @param source_file The source filename. Can be NULL.
+ * @param function The function calling the log. Can be NULL.
+ * @param level At what level is the log message (TERSE/high level or VERBOSE/low level), 
+ *         a valid member of LOG_VERBOSITY.
+ * @param category What sort of information is the message. Designed to be used as a filter. Can be NULL.
  * @return The routine returns TRUE if the level is less than or equal to the Log_Data.Log_Filter_Level,
  * 	otherwise it returns FALSE.
  * @see #Log_Data
  */
-int Object_Log_Filter_Level_Absolute(int level)
+int Object_Log_Filter_Level_Absolute(char *sub_system,char *source_filename,char *function,int level,char *category)
 {
   return (level <= Log_Data.Log_Filter_Level);
 }
@@ -1584,12 +1631,17 @@ int Object_Log_Filter_Level_Absolute(int level)
 */
 /**
  * A log message filter routine, to be used for the Log_Data.Log_Filter function pointer.
- * @param level The log level of the message to be tested.
+ * @param sub_system The sub system. Can be NULL.
+ * @param source_file The source filename. Can be NULL.
+ * @param function The function calling the log. Can be NULL.
+ * @param level At what level is the log message (TERSE/high level or VERBOSE/low level), 
+ *         a valid member of LOG_VERBOSITY.
+ * @param category What sort of information is the message. Designed to be used as a filter. Can be NULL.
  * @return The routine returns TRUE if the level has bits set that are also set in the 
  * 	Log_Data.Log_Filter_Level, otherwise it returns FALSE.
  * @see #Log_Data
  */
-int Object_Log_Filter_Level_Bitwise(int level)
+int Object_Log_Filter_Level_Bitwise(char *sub_system,char *source_filename,char *function,int level,char *category)
 {
   return ((level & Log_Data.Log_Filter_Level) > 0);
 }
@@ -1656,7 +1708,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
   /* ------------------------------- */
 
   #if LOGGING > 9
-  Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
+  Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",OBJECT_LOG_BIT_POINT,NULL,
 		    "adding point %d,%d to list.",x,y);
   #endif
 
@@ -1680,7 +1732,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     /* ------------------------------ */
     if (image[(cy*naxis1)+cx] > thresh){     
       #if LOGGING > 9
-      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
+      Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",OBJECT_LOG_BIT_POINT,NULL,
 			"adding pixel %d,%d to object.",cx,cy);
       #endif
 
@@ -1743,8 +1795,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 	  if (image[(y1*naxis1)+x1] > thresh){
 	    /* add this point to be processed */
             #if LOGGING > 9
-	      Object_Log_Format(OBJECT_LOG_BIT_POINT,
-		  	      "Object_List_Get_Connected_Pixels:"
+	      Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",OBJECT_LOG_BIT_POINT,NULL,
 		  	      "adding point %d,%d to list.",x1,y1);
             #endif
 	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
@@ -1758,7 +1809,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     /* -------------------------- */
     else {
       #if LOGGING > 9
-      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_List_Get_Connected_Pixels:"
+      Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",OBJECT_LOG_BIT_POINT,NULL,
 			"pixel %d,%d already added to object, ignoring.",cx,cy);
       #endif
     }
@@ -1766,7 +1817,7 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     /* delete processed point */
     /* ---------------------- */
     #if LOGGING > 9
-    Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_List_Get_Connected_Pixels:"
+    Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",OBJECT_LOG_BIT_POINT,NULL,
 		      "deleting point %d,%d from list.",cx,cy);
     #endif
     if(!Point_List_Remove_Head(&point_list,&point_count))
@@ -1837,7 +1888,8 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
   /* ------------------------------- */
 
   #if LOGGING > 9
-  Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_Find_Peak: adding point %d,%d to list.",x,y);
+  Object_Log_Format("object","object.c","Object_Find_Peak",OBJECT_LOG_BIT_POINT,NULL,
+		    "adding point %d,%d to list.",x,y);
   #endif
 
   if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
@@ -1860,7 +1912,7 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
     /* ------------------------------ */
     if (image[(cy*naxis1)+cx] > w_object->peak){     
       #if LOGGING > 9
-      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_Find_Peak:"
+      Object_Log_Format("object","object.c","Object_Find_Peak",OBJECT_LOG_BIT_PIXEL,NULL,
 			"adding pixel %d,%d to object.",cx,cy);
       #endif
 
@@ -1879,9 +1931,8 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
 	  if (image[(y1*naxis1)+x1] > w_object->peak){
 	    /* add this point to be processed */
             #if LOGGING > 9
-	      Object_Log_Format(OBJECT_LOG_BIT_POINT,
-		  	      "Object_Find_Peak:"
-		  	      "adding point %d,%d to list.",x1,y1);
+	      Object_Log_Format("object","object.c","Object_Find_Peak",OBJECT_LOG_BIT_POINT,NULL,
+				"adding point %d,%d to list.",x1,y1);
             #endif
 	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
 	      return FALSE;
@@ -1894,7 +1945,7 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
     /* -------------------------- */
     else {
       #if LOGGING > 9
-      Object_Log_Format(OBJECT_LOG_BIT_PIXEL,"Object_Find_Peak:"
+      Object_Log_Format("object","object.c","Object_Find_Peak",OBJECT_LOG_BIT_PIXEL,NULL,
 			"pixel %d,%d already added to object, ignoring.",cx,cy);
       #endif
     }
@@ -1902,7 +1953,7 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
     /* delete processed point */
     /* ---------------------- */
     #if LOGGING > 9
-    Object_Log_Format(OBJECT_LOG_BIT_POINT,"Object_Find_Peak:"
+    Object_Log_Format("object","object.c","Object_Find_Peak",OBJECT_LOG_BIT_POINT,NULL,
 		      "deleting point %d,%d from list.",cx,cy);
     #endif
     if(!Point_List_Remove_Head(&point_list,&point_count))
@@ -1935,7 +1986,7 @@ static void Object_Free(Object **w_object)
   HighPixel *high_pixel,*next_pixel;
 
 #if LOGGING > 10
-  Object_Log_Format(OBJECT_LOG_BIT_OBJECT,"Object_Free:w_object (%p).",(*w_object));
+  Object_Log_Format("object","object.c","Object_Free",OBJECT_LOG_BIT_OBJECT,NULL,"w_object (%p).",(*w_object));
 #endif
   /* free highpixel list */
   high_pixel = (*w_object)->highpixel;
@@ -2237,11 +2288,8 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
 
 
 #if LOGGING > 5
-  Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-		    "Object_Calculate_FWHM: (%d) a = %.2f, b = %.2f\tellip = %.2f",
-		    w_object->objnum,
-		    major,minor,
-		    ellip);
+  Object_Log_Format("object","object.c","Object_Calculate_FWHM",OBJECT_LOG_BIT_FWHM,NULL,
+		    "(%d) a = %.2f, b = %.2f\tellip = %.2f",w_object->objnum,major,minor,ellip);
 #endif
  
 
@@ -2261,8 +2309,8 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   }
 
 #if LOGGING > 5
-  Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-		    "Object_Calculate_FWHM: object (%d) stellarflag %s, is_stellar [%d]",
+  Object_Log_Format("object","object.c","Object_Calculate_FWHM",OBJECT_LOG_BIT_FWHM,NULL,
+		    "object (%d) stellarflag %s, is_stellar [%d]",
 		    w_object->objnum,stellarflag,w_object->is_stellar);
 #endif
 
@@ -2356,8 +2404,8 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     (*fwhm) = DEFAULT_SEEING_NONSTELLAR;
 
 #if LOGGING > 5
-    Object_Log_Format(OBJECT_LOG_BIT_FWHM,
-		      "Object_Calculate_FWHM: object (%d) is %s, setting FWHM to %f",
+    Object_Log_Format("object","object.c","Object_Calculate_FWHM",OBJECT_LOG_BIT_FWHM,NULL,
+		      "object (%d) is %s, setting FWHM to %f",
 		      w_object->objnum,stellarflag,DEFAULT_SEEING_NONSTELLAR);
 #endif
     
@@ -2574,6 +2622,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.6  2008/10/07 13:55:32  cjm
+** Fixed object total counts measure by uncommenting increment.
+**
 ** Revision 1.5  2008/10/07 13:17:59  cjm
 ** Changed some pixel logging from OBJECT to PIXEL bit.
 **

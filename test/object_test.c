@@ -29,7 +29,7 @@
 
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.7 2008-10-08 10:30:46 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.8 2009-01-30 15:22:55 cjm Exp $
 */
 
 
@@ -50,6 +50,10 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.7  2008/10/08 10:30:46  eng
+  Tweaked "brightest object" loop to use a copy of object_list rather tha   the real thing, to avoid problems further down the code when plotting
+  object mask output fits image.
+
   Revision 1.6  2008/10/08 10:07:45  eng
   Added object loop to find brightest object & print result.
 
@@ -121,7 +125,7 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test.c,v 1.7 2008-10-08 10:30:46 eng Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.8 2009-01-30 15:22:55 cjm Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
@@ -188,7 +192,7 @@ int main(int argc, char *argv[])
     return 2;
   }
   Object_Set_Log_Handler_Function(Object_Log_Handler_Stdout);
-  Object_Set_Log_Filter_Function(Object_Log_Filter_Level_Bitwise);
+  Object_Set_Log_Filter_Function(Object_Log_Filter_Level_Absolute);
   Object_Set_Log_Filter_Level(Log_Level);
 
   /*
@@ -832,6 +836,10 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.7  2008/10/08 10:30:46  eng
+** Tweaked "brightest object" loop to use a copy of object_list rather tha   the real thing, to avoid problems further down the code when plotting
+** object mask output fits image.
+**
 ** Revision 1.6  2008/10/08 10:07:45  eng
 ** Added object loop to find brightest object & print result.
 **

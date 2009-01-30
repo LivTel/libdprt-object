@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.6 2008-10-07 12:58:52 eng Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.7 2009-01-30 15:19:48 cjm Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -8,6 +8,11 @@ LIBNAME		= libdprt_object
 INCDIR 		= $(LIBDPRT_OBJECT_SRC_HOME)/include
 DOCSDIR 	= $(LIBDPRT_OBJECT_DOC_HOME)/cdocs
 BINDIR		= $(LIBDPRT_OBJECT_BIN_HOME)/c/$(HOSTTYPE)
+
+# log_udp library (log_udp.h is included for verbosity settings)
+LOG_UDP_HOME	=	log_udp
+LOG_UDP_SRC_HOME=	$(LT_SRC_HOME)/$(LOG_UDP_HOME)
+LOG_UDP_CFLAGS	= -I$(LOG_UDP_SRC_HOME)/include
 
 # Controls how much logging code to put into the library.
 # 0 no logging
@@ -20,7 +25,7 @@ LOGGINGCFLAGS	= -DLOGGING=6
 # If you're insane, disable NULL pointer checks
 MEMORYCFLAGS	= -DMEMORYCHECK
 CFLAGS 		= -g $(CCHECKFLAG) -I$(INCDIR) -I$(CFITSIOINCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR) -L$(LT_LIB_HOME) \
-			$(LOGGINGCFLAGS) $(MEMORYCFLAGS)
+			$(LOGGINGCFLAGS) $(MEMORYCFLAGS) $(LOG_UDP_CFLAGS)
 LINTFLAGS 	= -I$(INCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR)
 DOCFLAGS 	= -static
 SRCS 		= object.c
@@ -81,6 +86,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.6  2008/10/07 12:58:52  eng
+# Changed DLOGGING to 6 again on CJM's instructions (jmm).
+#
 # Revision 1.5  2008/09/30 19:49:17  eng
 # Switched off debug. Set LOGGING level to 0.
 #

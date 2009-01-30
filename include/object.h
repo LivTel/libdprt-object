@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.8 2009-01-28 14:18:54 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.9 2009-01-30 15:20:08 cjm Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -56,32 +56,6 @@
  * The number of milliseconds in one second.
  */
 #define ONE_SECOND_MS        (1000)                                
-
-/* Logging bits.
-** Note the DpRt java layer reserves bits 0-7 inclusive.
-** Note libdprt_rjs reserves bits 8-15 inclusive (currently unused).
-** Note libdprt_object reserves bits 16-23 inclusive.
-*/
-/**
- * Value to pass into logging calls, used to log general execution.
- */
-#define OBJECT_LOG_BIT_GENERAL       (1<<16)
-/**
- * Value to pass into logging calls, used to log object changing code.
- */
-#define OBJECT_LOG_BIT_OBJECT        (1<<17)
-/**
- * Value to pass into logging calls, used to log FWHM code.
- */
-#define OBJECT_LOG_BIT_FWHM          (1<<18)
-/**
- * Value to pass into logging calls, used to log pixel (of object) code.
- */
-#define OBJECT_LOG_BIT_PIXEL         (1<<19)
-/**
- * Value to pass into logging calls, used to log point list (internal list recursion) code.
- */
-#define OBJECT_LOG_BIT_POINT         (1<<20)
 
 /* structures */
 /**

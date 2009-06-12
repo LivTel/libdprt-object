@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.8 2009-01-30 15:20:31 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.9 2009-06-12 10:32:06 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.8 $
+ * @version $Revision: 1.9 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.8  2009/01/30 15:20:31  cjm
+  Replaced log bit levels with log_udp.h verbositys.
+
   Revision 1.7  2009/01/28 14:18:53  cjm
   Added extra parameters to logging routines for GLS support.
 
@@ -248,9 +251,9 @@
 #define DEFAULT_SEEING_ZERO        (951.0)       /* if fwhm not > 0                            */
 
 /**
- * Other miscellaneous definitions
+ * Default upper limit of ellipticity for an object to be classed as 'stellar'.
  */
-#define STELLAR_ELLIP_LIMIT   (0.3)         /* upper limit of ellipticity for an object to be classed as 'stellar' */
+#define DEFAULT_STELLAR_ELLIP_LIMIT   (0.3)
 
 #define MAX_N_FWHM            (17)          /* deliberately chosen to be odd */
 #define MAX_N_FWHM_MID        (8)           /* median for 11 items with c-like counting from zero */
@@ -320,7 +323,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.8 2009-01-30 15:20:31 cjm Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.9 2009-06-12 10:32:06 cjm Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -342,6 +345,11 @@ static struct Log_Struct Log_Data;
  * @see #OBJECT_ERROR_STRING_LENGTH
  */
 static char Object_Buff[OBJECT_ERROR_STRING_LENGTH];
+/**
+ * Upper limit of ellipticity for an object to be classed as 'stellar'.
+ * @see #DEFAULT_STELLAR_ELLIP_LIMIT
+ */
+static float Stellar_Ellipticity_Limit = DEFAULT_STELLAR_ELLIP_LIMIT;
 
 /* ------------------------------------------------------- */
 /* internal function declarations */
@@ -1326,7 +1334,24 @@ void Object_Warning(void)
 }
 
 
-
+/**
+ * Set the stellar ellipticity limit. If the computed ellipticity of an object is above the limit,
+ * the object is flagged non-stellar.
+ * @param limit The ellipticity limit. This must be a positive number.
+ * @return The routine returns TRUE on success and false on failure.
+ */
+int Object_Stellar_Ellipticity_Limit_Set(float limit)
+{
+	if(limit <= 0.0)
+	{
+		Object_Error_Number = 8;
+		sprintf(Object_Error_String,"Object_Stellar_Ellipticity_Limit_Set:ellipticity %.2f out of range.",
+			limit);
+		return FALSE;
+	}
+	Stellar_Ellipticity_Limit = limit;
+	return TRUE;
+}
 
 /*
 ---------------------------------------------------------------------
@@ -2191,6 +2216,7 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
  * @param is_stellar The address of an integer to store a boolean. On exit of the routine,
  *        will be TRUE if stellar, FALSE if non-stellar.
  * @param fwhm An address to store the calculated full width half maximum, in pixels.
+ * @see #Stellar_Ellipticity_Limit
  */
 static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stellar,float *fwhm)
 {
@@ -2303,7 +2329,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     set stellar flag
     ----------------
   */
-  if (ellip <= STELLAR_ELLIP_LIMIT){
+  if (ellip <= Stellar_Ellipticity_Limit){
     (*is_stellar) = TRUE;            /* object is STELLAR */
     w_object->is_stellar = TRUE;
     sprintf(stellarflag,"stellar");
@@ -2628,6 +2654,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.8  2009/01/30 15:20:31  cjm
+** Replaced log bit levels with log_udp.h verbositys.
+**
 ** Revision 1.7  2009/01/28 14:18:53  cjm
 ** Added extra parameters to logging routines for GLS support.
 **

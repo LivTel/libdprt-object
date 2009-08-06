@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.9 2009-06-12 10:32:06 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.10 2009-08-06 13:34:03 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.9 $
+ * @version $Revision: 1.10 $
  */
 
 
@@ -39,6 +39,10 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.9  2009/06/12 10:32:06  cjm
+  Added Object_Stellar_Ellipticity_Limit_Set/Stellar_Ellipticity_Limit to make
+  the stellar ellipticity limit configurable.
+
   Revision 1.8  2009/01/30 15:20:31  cjm
   Replaced log bit levels with log_udp.h verbositys.
 
@@ -259,6 +263,15 @@
 #define MAX_N_FWHM_MID        (8)           /* median for 11 items with c-like counting from zero */
 
 
+/**
+ * Define a "margin" around the image frame to prevent objects being made from
+ * pixels within a distance N pixels from the frame edge.
+ */
+#define MARGIN (5) /* pixels */
+
+
+
+
 /* ------------------------------------------------------- */
 /* structure declarations */
 /* ------------------------------------------------------- */
@@ -323,7 +336,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.9 2009-06-12 10:32:06 cjm Exp $";*/
+/*static char rcsid[] = "$Id: object.c,v 1.10 2009-08-06 13:34:03 eng Exp $";*/
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -498,9 +511,9 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* RUN THROUGH ALL PIXELS */
   /* ---------------------- */
 
-  for(y=0;y<naxis2;y++)
+  for(y=MARGIN;y<(naxis2-MARGIN);y++)
     {
-      for(x=0;x<naxis1;x++)
+      for(x=MARGIN;x<(naxis1-MARGIN);x++)
 	{
 
 #if LOGGING > 9
@@ -2654,6 +2667,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.9  2009/06/12 10:32:06  cjm
+** Added Object_Stellar_Ellipticity_Limit_Set/Stellar_Ellipticity_Limit to make
+** the stellar ellipticity limit configurable.
+**
 ** Revision 1.8  2009/01/30 15:20:31  cjm
 ** Replaced log bit levels with log_udp.h verbositys.
 **

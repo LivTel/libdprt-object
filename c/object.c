@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.10 2009-08-06 13:34:03 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.11 2009-08-11 14:24:32 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.10 $
+ * @version $Revision: 1.11 $
  */
 
 
@@ -39,6 +39,13 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.10  2009/08/06 13:34:03  eng
+  Defining a "margin" around the image frame to prevent objects being made from
+  pixels within a distance N pixels from the frame edge. This is primarily to
+  avoid objects made from the "hot rows" at the bottom of RATCam images. NB: I
+  would have thought however that such an object would have been rejected as
+  very much non-stellar anyway later in the code, but so be it. (JMM)
+
   Revision 1.9  2009/06/12 10:32:06  cjm
   Added Object_Stellar_Ellipticity_Limit_Set/Stellar_Ellipticity_Limit to make
   the stellar ellipticity limit configurable.
@@ -336,7 +343,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-/*static char rcsid[] = "$Id: object.c,v 1.10 2009-08-06 13:34:03 eng Exp $";*/
+static char rcsid[] = "$Id: object.c,v 1.11 2009-08-11 14:24:32 cjm Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -840,7 +847,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* EXTRA DEBUG - LIST CONNECTED PIXELS IN ALL OBJECTS */
   /* -------------------------------------------------- */
 
-#if LOGGING > 5
+#if LOGGING > 12
   w_object = (*first_object);
   while(w_object != NULL)
   {
@@ -2667,6 +2674,13 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.10  2009/08/06 13:34:03  eng
+** Defining a "margin" around the image frame to prevent objects being made from
+** pixels within a distance N pixels from the frame edge. This is primarily to
+** avoid objects made from the "hot rows" at the bottom of RATCam images. NB: I
+** would have thought however that such an object would have been rejected as
+** very much non-stellar anyway later in the code, but so be it. (JMM)
+**
 ** Revision 1.9  2009/06/12 10:32:06  cjm
 ** Added Object_Stellar_Ellipticity_Limit_Set/Stellar_Ellipticity_Limit to make
 ** the stellar ellipticity limit configurable.

@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.7 2009-01-30 15:19:48 cjm Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.8 2009-08-11 14:24:48 cjm Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -20,6 +20,7 @@ LOG_UDP_CFLAGS	= -I$(LOG_UDP_SRC_HOME)/include
 # 6 FWHM and Object logging
 # 10 per pixel logging
 # 11 some extra memory logging
+# 13 insane per-pixel logging
 # 6 seems about right.
 LOGGINGCFLAGS	= -DLOGGING=6
 # If you're insane, disable NULL pointer checks
@@ -86,6 +87,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.7  2009/01/30 15:19:48  cjm
+# Added LOG_UDP location/include to CFLAGS to get logging verbositys.
+#
 # Revision 1.6  2008/10/07 12:58:52  eng
 # Changed DLOGGING to 6 again on CJM's instructions (jmm).
 #

@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.11 2009-08-11 14:24:32 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.12 2009-08-19 17:54:00 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.11 $
+ * @version $Revision: 1.12 $
  */
 
 
@@ -39,6 +39,10 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.11  2009/08/11 14:24:32  cjm
+  Turned down per-pixel logging.
+  Reenabled rcsid.
+
   Revision 1.10  2009/08/06 13:34:03  eng
   Defining a "margin" around the image frame to prevent objects being made from
   pixels within a distance N pixels from the frame edge. This is primarily to
@@ -343,7 +347,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.11 2009-08-11 14:24:32 cjm Exp $";
+static char rcsid[] = "$Id: object.c,v 1.12 2009-08-19 17:54:00 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -518,9 +522,9 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* RUN THROUGH ALL PIXELS */
   /* ---------------------- */
 
-  for(y=MARGIN;y<(naxis2-MARGIN);y++)
+  for(y=0;y<naxis2;y++)
     {
-      for(x=MARGIN;x<(naxis1-MARGIN);x++)
+      for(x=0;x<naxis1;x++)
 	{
 
 #if LOGGING > 9
@@ -693,14 +697,15 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
   /*
-                                               _ _       _     _        _      
-     _ _ ___ _ __  _____ _____   ____ __  __ _| | |  ___| |__ (_)___ __| |_ ___
-    | '_/ -_) '  \/ _ \ V / -_) (_-< '  \/ _` | | | / _ \ '_ \| / -_) _|  _(_-<
-    |_| \___|_|_|_\___/\_/\___| /__/_|_|_\__,_|_|_| \___/_.__// \___\__|\__/__/
-                                                            |__/               
+                                      _     _        _      
+     _ _ ___ _ __  _____ _____    ___| |__ (_)___ __| |_ ___
+    | '_/ -_) '  \/ _ \ V / -_)  / _ \ '_ \| / -_) _|  _(_-<
+    |_| \___|_|_|_\___/\_/\___|  \___/_.__// \___\__|\__/__/
+                                         |__/               
 
-    go through list of objects, get rid of any with less than npix
-
+    Go through list of objects, getting rid of:
+    - objects with less than npix
+    - objects where xpos,ypos are within MARGIN pixels of the frame edge
   */
 
 
@@ -712,14 +717,16 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 
 
-  /* ------------------------------------ */
-  /* IF FIRST OBJECT TOO SMALL, DELETE IT */
-  /* ------------------------------------ */
+  /* ------------------------------------------------- */
+  /* IF FIRST OBJECT TOO SMALL OR IN MARGIN, DELETE IT */
+  /* ------------------------------------------------- */
   
   w_object = (*first_object);
   done = FALSE;
   while(done == FALSE){
-    if(w_object->numpix >= npix)             /* if object bigger than limit */
+    if ((w_object->numpix >= npix) 
+	&& (w_object->xpos > MARGIN) && (w_object->xpos <(naxis1-MARGIN)) 
+	&& (w_object->ypos > MARGIN) && (w_object->ypos <(naxis2-MARGIN)))
       done = TRUE;                           /* we're done */
     else {                                   /* otherwise */
 
@@ -795,12 +802,15 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
   /* ------------------------------------------------------------------- */
   /* GO THROUGH REST OF OBJECT LIST, DELETING OBJECTS WITH NUMPIX < NPIX */
+  /* OR IF OBJECT IN MARGIN                                              */
   /* ------------------------------------------------------------------- */
 
   while(w_object != NULL)
     {
       next_object=w_object->nextobject;         /* take copy of next object to go to */
-      if(w_object->numpix < npix)
+      if((w_object->numpix < npix)
+	 && (w_object->xpos > MARGIN) && (w_object->xpos <(naxis1-MARGIN)) 
+	 && (w_object->ypos > MARGIN) && (w_object->ypos <(naxis2-MARGIN)))
 	{
 
 
@@ -2674,6 +2684,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.11  2009/08/11 14:24:32  cjm
+** Turned down per-pixel logging.
+** Reenabled rcsid.
+**
 ** Revision 1.10  2009/08/06 13:34:03  eng
 ** Defining a "margin" around the image frame to prevent objects being made from
 ** pixels within a distance N pixels from the frame edge. This is primarily to

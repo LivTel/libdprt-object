@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.11 2014-07-30 17:44:44 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.12 2014-07-30 21:38:36 eng Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -91,6 +91,7 @@ typedef struct HighPixel_Struct HighPixel;
  * <li><b>fwhmx</b> Full width Half Maximum in X in pixels. Only valid if is_stellar is TRUE. (See below)
  * <li><b>fwhmy</b> Full width Half Maximum in Y in pixels. Only valid if is_stellar is TRUE.  (See below)
  * <li><b>ellipticity</b> A simple ellipticity measure. (A-B)/A.  (See below)
+ * <li><b>ellip_theta</b> Orientation angle of the long axis of the ellipticity.
  * <li><b>nextobject</b> A pointer to the next object in the (linked) list.
  * <li><b>highpixel</b> A pointer to a linked list of pixels in the object.
  * <li><b>last_hp</b> A pointer to the end element in the highpixel list.
@@ -112,6 +113,7 @@ struct Object_Struct
 	float fwhmx;
 	float fwhmy;
 	float ellipticity;
+	float ellip_theta;
 	struct Object_Struct *nextobject;
 	HighPixel *highpixel;
 	HighPixel *last_hp;

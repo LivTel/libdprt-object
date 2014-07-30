@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.14 2014-07-30 17:42:09 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.15 2014-07-30 18:26:21 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.14 $
+ * @version $Revision: 1.15 $
  */
 
 
@@ -39,6 +39,15 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.14  2014/07/30 17:42:09  eng
+  Continuation of changes from v1.13. Finished adding teh function that allows you to set
+  the saturation level and created a DEFAULT #def to set the satuation to 63000 ADU if not
+  set explicitly by the calling application.
+
+  When determining the list of candidate objects which will be used to derive the
+  median seeing, added a check to reject any sources with peak > saturation limit. Only
+  unsaturated stars to be used to measure seeing.
+
   Revision 1.13  2014/07/30 17:26:41  eng
   Added Object_Saturation_Limit_Set() to allow the calling application to define
   a saturation limit for teh detector that overrides the built in default.
@@ -363,7 +372,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.14 2014-07-30 17:42:09 eng Exp $";
+static char rcsid[] = "$Id: object.c,v 1.15 2014-07-30 18:26:21 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -481,7 +490,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   int obj_area;                             /* number of pixels in object */
   float obj_fwhm;                           /* object fwhm in pixels */
   float obj_dia;                            /* object pseudo-diameter (pixels) */
-  float obj_peak			    /* ADU of brightest pixel in the image */
+  float obj_peak;			    /* ADU of brightest pixel in the image */
   int mid_posn;                             /* middle position of fwhmarray, to find median */
   int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
   float median_fwhm;                        /* median fwhm obtained from fwhmarray */
@@ -1446,14 +1455,14 @@ int Object_Stellar_Ellipticity_Limit_Set(float limit)
  */
 int Object_Saturation_Limit_Set(float saturation)
 {
-	if(limit <= 0.0)
+	if(saturation <= 0.0)
 	{
 		Object_Error_Number = 16;
 		sprintf(Object_Error_String,"Object_Saturation_Limit_Set:saturation %.2f out of range.", saturation);
 		return FALSE;
 	}
-	Saturaiotn_Limit = saturation;
-	return TRUE
+	Saturation_Limit = saturation;
+	return TRUE;
 }
 
 
@@ -2527,9 +2536,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   float aux=0,aux2=0;             /* auxiliary variable */
   float minor=0,major=0;          /* semi-minor and semi-major axes of the object ellipse */
   float ellip;                    /* ellipticity = (major-minor)/major */
-/* RJS making first attempt at ellipse orientation */
-/*   float theta; */
-/* RJS */
+  float ellip_theta;		  /* Orientation in the frame of the ellipticity major axis */
 
   HighPixel *curpix;              /* pixel pointer */
   char stellarflag[32];           /* stellar flag string for diagnostics */
@@ -2606,23 +2613,22 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   ellip = (major-minor)/major;
   w_object->ellipticity = ellip;
 
-/* RJS making first attempt at ellipse orientation 
- * I am not sure how we will want to define orientaion ultimately but for now
- * I use the standard cartesian convention of measuring anticlockwise from the X
- * axis so that a horizontal elongation is 0 (or 180) and a vertical elongation is 90 (or -90) */
-/*
-      if ( x2I == y2I ) 
-        theta = 1.5707963268 ; (M_PI / 2 == 90deg)   sets orientation 'vertical' if undefined  
-      else {
-        theta = 0.5 * atan2( (2.0*xy2I) , (x2I-y2I) ); 
-	if (theta < 0) theta += 3.14159265359;	Keep to 0 < theta < 180deg  
-      }
-*/
-/* End RJS */
+  /* Measure orientation of the ellipticity axis.
+   * I am not sure how we will want to define orientaion ultimately but for now
+   * I use the standard cartesian convention of measuring anticlockwise from the X
+   * axis so that a horizontal elongation is 0 (or 180) and a vertical elongation is 90 up (or -90 down) */
+  if ( x2I == y2I ) 
+    /* (M_PI / 2 == 90deg)  sets orientation 'vertical' if undefined for a _perfectly_ circular source */
+    ellip_theta = 1.5707963268 ; 
+  else {
+    ellip_theta = 0.5 * atan2( (2.0*xy2I) , (x2I-y2I) ); 
+    /* Keep to 0 < ellip_theta < 180deg */
+    if (ellip_theta < 0) ellip_theta += 3.14159265359;
+  }
 
 #if LOGGING > 5
   Object_Log_Format("object","object.c","Object_Calculate_FWHM",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-		    "(%d) a = %.2f, b = %.2f\tellip = %.2f\ttheta = %.2f",w_object->objnum,major,minor,ellip,theta);
+		    "(%d) a = %.2f, b = %.2f\tellip = %.2f\ttheta = %.2f",w_object->objnum,major,minor,ellip,ellip_theta);
 #endif
  
 
@@ -2965,6 +2971,15 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.14  2014/07/30 17:42:09  eng
+** Continuation of changes from v1.13. Finished adding teh function that allows you to set
+** the saturation level and created a DEFAULT #def to set the satuation to 63000 ADU if not
+** set explicitly by the calling application.
+**
+** When determining the list of candidate objects which will be used to derive the
+** median seeing, added a check to reject any sources with peak > saturation limit. Only
+** unsaturated stars to be used to measure seeing.
+**
 ** Revision 1.13  2014/07/30 17:26:41  eng
 ** Added Object_Saturation_Limit_Set() to allow the calling application to define
 ** a saturation limit for teh detector that overrides the built in default.

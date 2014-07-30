@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.12 2009-08-19 17:54:00 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.13 2014-07-30 17:26:41 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.12 $
+ * @version $Revision: 1.13 $
  */
 
 
@@ -39,6 +39,12 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.12  2009/08/19 17:54:00  eng
+  Tweaked to apply the MARGIN criteria instead to the object centroid position
+  (xpos,ypos) rather than pixels used in object creation. This is because
+  there's nothing to stop the finding-of-connected-pixels process going into
+  the margin area in some cases.
+
   Revision 1.11  2009/08/11 14:24:32  cjm
   Turned down per-pixel logging.
   Reenabled rcsid.
@@ -347,7 +353,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.12 2009-08-19 17:54:00 eng Exp $";
+static char rcsid[] = "$Id: object.c,v 1.13 2014-07-30 17:26:41 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -522,14 +528,21 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   /* RUN THROUGH ALL PIXELS */
   /* ---------------------- */
 
+
+
+#if LOGGING > 7
+  Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,"(AGD) All pixels above threshold %.2f",thresh);
+#endif
+
+
+
   for(y=0;y<naxis2;y++)
     {
       for(x=0;x<naxis1;x++)
 	{
 
 #if LOGGING > 9
-	  Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-			    "searching pixel %d,%d.",x,y);
+	  Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_VERY_VERBOSE,NULL,"searching pixel %d,%d.",x,y);
 #endif
 
 	  /* ---------------------------- */
@@ -578,14 +591,14 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 
 #if LOGGING > 3
 	      Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,
-				"found start of object at %d,%d.",x,y);
+				"found start of object at %d,%d,%.2f",x,y,image[(y*naxis1)+x]);
 #endif
 
 
 	      /* --------------------------------------------------------- */
 	      /* GET ALL CONNECTED PIXELS ABOVE LOCAL 1/5th PEAK THRESHOLD */
 	      /* --------------------------------------------------------- */
-	      
+
 	      /*
 		initialise stats
 		----------------
@@ -600,6 +613,11 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		find object peak value
 		----------------------
 	      */
+#if LOGGING > 7
+	      Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				"(AGD) calling Object_Find_Peak to find local 1/5th peak value",x,y);
+#endif
+
 	      Object_Find_Peak(naxis1,naxis2,x,y,image,w_object);
 
 	      /* 
@@ -623,6 +641,11 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	      */
 	      thresh2 = image_median + ( (w_object->peak-image_median) / 5); 
 
+#if LOGGING > 7
+	      Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				"(AGD) Found object peak at %d,%d,%.2f so setting thresh2 = median + (peak/5) = %.2f",
+				local_peak_x,local_peak_y,image[(local_peak_y*naxis1)+local_peak_x],thresh2);
+#endif
 	      
 	      /* 
 		check if thresh2 > thresh
@@ -632,8 +655,14 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		time and extract its halo as a second object after you have
 		extracted the core above thresh2 as a first obejct.
 	      */
-	      if (thresh2 > thresh)
+	      if (thresh2 > thresh){
 		thresh2 = thresh;    
+
+#if LOGGING > 7
+		Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				  "(AGD) thresh2 must be below thresh, but here thresh2 > thresh, so setting thresh2 = thresh");
+#endif
+	      }
 
 
 	      /* 
@@ -647,6 +676,12 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 	      w_object->numpix=0;
 
 
+
+#if LOGGING > 7
+		Object_Log_Format("object","object.c","Object_List_Get",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				  "(AGD) calling Object_List_Get_Connected_Pixels to build object now, using all appropriate pixels");
+#endif
+
 	      if(!Object_List_Get_Connected_Pixels(naxis1,naxis2,image_median,x,y,thresh2,image,
 						   w_object))
 		{
@@ -654,7 +689,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
 		}
 
 	    }/* end if threshold exceeded for image[x,y] */
-	}/* end for on x */
+       }/* end for on x */
     }/* end for on y */
 
 
@@ -1383,6 +1418,27 @@ int Object_Stellar_Ellipticity_Limit_Set(float limit)
 	return TRUE;
 }
 
+/**
+ * Set the detector saturation limit. All detected sources are analyzed and ertuned in the
+ * list. This saturation threshold is only used to prevent saturated stars from being
+ * included in the overall median seeing estimate for the frame.
+ * @param saturation The detector saturation in ADU. This must be a positive number.
+ * @return The routine returns TRUE on success and false on failure.
+ */
+int Object_Saturation_Limit_Set(float saturation)
+{
+	if(limit <= 0.0)
+	{
+		Object_Error_Number = 16;
+		sprintf(Object_Error_String,"Object_Saturation_Limit_Set:saturation %.2f out of range.", saturation);
+		return FALSE;
+	}
+	Saturaiotn_Limit = saturation;
+	return TRUE
+}
+
+
+
 /*
 ---------------------------------------------------------------------
   ___   _      _           _      ___       _   
@@ -1748,6 +1804,11 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 					    float *image,Object *w_object)
 {
   
+
+  /* Note the threshold value passed to this function is actually what's referred to as "thresh2" outside of this
+   function. It's still called "thresh" in here though. */
+
+
   /* ------------- */
   /* SET VARIABLES */
   /* ------------- */
@@ -1762,24 +1823,42 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
   float SumYI = 0.0;                   /* Running totals for moment calculation */
   float SumI = 0.0;                    /* Running totals for moment calculation */
 
-
+  /* float orig_pixelvalue = 0.0; */
 
   /* ------------------------------- */
   /* ADD FIRST POINT TO BE PROCESSED */
   /* ------------------------------- */
 
-  #if LOGGING > 9
+#if LOGGING > 9
   Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 		    "adding point %d,%d to list.",x,y);
-  #endif
+#endif
+
+#if LOGGING > 7
+  Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_INTERMEDIATE,NULL,
+		    "(AGD) adding first point (%d,%d,%.2f) to new object (count %d)",
+		    x,y,image[(y*naxis1)+x],w_object->numpix);
+#endif
+  
+
+
+
 
   if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
     return FALSE;
   
 
+
+
+
   /* -------------------------------- */
   /* RUN THROUGH POINTS ON POINT LIST */
   /* -------------------------------- */
+#if LOGGING > 7
+  Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_INTERMEDIATE,NULL,
+		    "(AGD) running through points on point list");
+#endif
+
   while(point_count > 0){
     
 
@@ -1792,21 +1871,31 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
     /* if pixel value above threshold */
     /* ------------------------------ */
     if (image[(cy*naxis1)+cx] > thresh){     
-      #if LOGGING > 9
+      
+ 
+#if LOGGING > 9
+      Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
+			"(AGD) pixel %d,%d,%f above thresh2 (%f) (count %d)",
+			cx,cy,image[(cy*naxis1)+cx],thresh,point_count);
+#endif
+
+
+#if LOGGING > 9
       Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 			"adding pixel %d,%d to object.",cx,cy);
-      #endif
+#endif
 
       /* allocate new object pixel */
       temp_hp=(HighPixel*)malloc(sizeof(HighPixel));
-      #ifdef MEMORYCHECK
+
+#ifdef MEMORYCHECK
       if(temp_hp == NULL){
 	Object_Error_Number = 3;
 	sprintf(Object_Error_String,"Object_List_Get_Connected_Pixels:"
 		"Failed to allocate temp_hp.");
 	return FALSE;
       }
-      #endif
+#endif
 
 
       /* don't know what this bit does */
@@ -1828,9 +1917,27 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 									 - (later) decided it's OK */
 
 
+
+
       /* important for recursion - stops infinite loops */
-      image[(cy*naxis1)+cx]=0.0;
+#if LOGGING > 9
+      orig_pixelvalue = image[(cy*naxis1)+cx];
+#endif	
+
+      /*image[(cy*naxis1)+cx]=0.0; */  /* (AGD) Change to stop looping with negative thresh2 (11/4/12) */
+
+      image[(cy*naxis1)+cx]=-1e9;
+
+
+/* #if LOGGING > 7 */
+/*       Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_INTERMEDIATE,NULL, */
+/* 			"(AGD) anti-recursion: zeroing point %d,%d,%f -> %d,%d,%f (count %d)", */
+/* 			cx,cy,orig_pixelvalue, */
+/* 			cx,cy,image[(cy*naxis1)+cx],point_count); */
+/* #endif	 */
 	
+
+
 
       /* end of per-pixel stuff: do some overall w_object stats */
       curpix = w_object->last_hp;
@@ -1848,6 +1955,29 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 
       w_object->numpix ++;
 
+
+#if LOGGING > 7
+      /* print 1-5 then every 10000th point */
+      if ((w_object->numpix) <= 5)
+	Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_INTERMEDIATE,NULL,
+			  "(AGD) object first 5: point (%d,%d,%.2f) > thresh2 (%.2f), adding to object (size %d)",
+			  cx,cy,w_object->last_hp->value,thresh,(w_object->numpix));
+	    
+
+      if (((w_object->numpix) % 10000 ) == 0)
+	Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_INTERMEDIATE,NULL,
+			  "(AGD) object runaway: point (%d,%d,%.2f) > thresh2 (%.2f), adding to object (size %d)",
+			  cx,cy,w_object->last_hp->value,thresh,(w_object->numpix));
+#endif	
+
+
+
+
+
+
+
+
+
       /* start of recursive stuff */
       for (x1 = cx-1; x1<=cx+1; x1++){
 	for (y1 = cy-1; y1<=cy+1; y1++){
@@ -1855,32 +1985,49 @@ static int Object_List_Get_Connected_Pixels(int naxis1,int naxis2,float image_me
 	    continue;                                           /* set a flag here to say crap object? */
 	  if (image[(y1*naxis1)+x1] > thresh){
 	    /* add this point to be processed */
-            #if LOGGING > 9
-	      Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
+#if LOGGING > 9
+	    Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 		  	      "adding point %d,%d to list.",x1,y1);
-            #endif
+#endif
+
+
+
 	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
 	      return FALSE;
 	  }
 	}/* end for on y1 */
       }/* end for on x1 */
-    }
+    }/* end of if pixel value above threshold */
 
-    /* if already added to object */
-    /* -------------------------- */
+
+
+    /* log if already added to object i.e./or if pixel value below threshold */
+    /* --------------------------------------------------------------------- */
     else {
-      #if LOGGING > 9
+
+
+
+
+#if LOGGING > 9
       Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 			"pixel %d,%d already added to object, ignoring.",cx,cy);
-      #endif
-    }
+#endif
+
+
+
+    } /* end of log if pixel value below threshold */
     
+
+
     /* delete processed point */
     /* ---------------------- */
-    #if LOGGING > 9
+#if LOGGING > 9
     Object_Log_Format("object","object.c","Object_List_Get_Connected_Pixels",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 		      "deleting point %d,%d from list.",cx,cy);
-    #endif
+#endif
+
+
+
     if(!Point_List_Remove_Head(&point_list,&point_count))
       return FALSE;
 
@@ -1943,15 +2090,26 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
   struct Point_Struct *point_list = NULL;
   struct Point_Struct *last_point = NULL;
   int point_count=0;
+  float curr_peak,new_peak;
+
 
   /* ------------------------------- */
   /* ADD FIRST POINT TO BE PROCESSED */
   /* ------------------------------- */
 
-  #if LOGGING > 9
-  Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-		    "adding point %d,%d to list.",x,y);
-  #endif
+/* #if LOGGING > 9 */
+/*   Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL, */
+/* 		    "adding point %d,%d to list.",x,y); */
+/* #endif */
+
+
+
+#if LOGGING > 7
+  Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_INTERMEDIATE,NULL,
+		    "(AGD) adding first point %d,%d,%.2f to peak-finding list (count was %d)",
+		    x,y,image[(y*naxis1)+x],(w_object->numpix));
+#endif
+
 
   if(!Point_List_Add(&point_list,&point_count,&last_point,x,y))
     return FALSE;
@@ -1960,6 +2118,12 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
   /* -------------------------------- */
   /* RUN THROUGH POINTS ON POINT LIST */
   /* -------------------------------- */
+#if LOGGING > 7
+  Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_INTERMEDIATE,NULL,
+		    "(AGD) running through points on point list");
+#endif
+
+
   while(point_count > 0){
     
 
@@ -1970,18 +2134,38 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
     
 
     /* if pixel value above current peak */
-    /* ------------------------------ */
-    if (image[(cy*naxis1)+cx] > w_object->peak){     
-      #if LOGGING > 9
-      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-			"adding pixel %d,%d to object.",cx,cy);
-      #endif
+    /* --------------------------------- */
+    if (image[(cy*naxis1)+cx] > w_object->peak){   
+  
 
-      
+#if LOGGING > 9
+      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
+			"adding point %d,%d to object.",cx,cy);
+#endif
+
+
+
+      curr_peak = w_object->peak;
+
       w_object->peak = image[(cy*naxis1)+cx] ;  
       w_object->xpos = cx ;
       w_object->ypos = cy ;
       w_object->numpix ++;
+
+      new_peak = w_object->peak;
+
+
+
+
+#if LOGGING > 7
+      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_INTERMEDIATE,NULL,
+			"(AGD) point %d,%d,%.2f > current peak %.2f, new peak %.2f, starting recursive loop (count %d)",
+			cx,cy,image[(cy*naxis1)+cx],curr_peak,new_peak,(w_object->numpix));
+#endif
+
+
+
+
 
 
       /* start of recursive stuff */
@@ -1989,34 +2173,62 @@ static int Object_Find_Peak(int naxis1,int naxis2,int x,int y, float *image,Obje
 	for (y1 = cy-1; y1<=cy+1; y1++){
 	  if (x1 >= naxis1 || y1 >= naxis2 || x1<0 || y1<0)  
 	    continue;                                           /* set a flag here to say crap object? */
+
 	  if (image[(y1*naxis1)+x1] > w_object->peak){
+
+
 	    /* add this point to be processed */
-            #if LOGGING > 9
-	      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-				"adding point %d,%d to list.",x1,y1);
-            #endif
+#if LOGGING > 9
+	    Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
+			      "adding point %d,%d to list.",x1,y1);
+#endif
+
+	    
+	    
+
+#if LOGGING > 7
+	    /* print first 5 then every 10000th point */
+	    if ((w_object->numpix) <= 5)
+	      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				"(AGD) peak first 5: adding point (%d,%d,%.2f) to list (count %d)",
+				x1,y1,image[(y1*naxis1)+x1],(w_object->numpix));
+
+
+	    if (((w_object->numpix) % 10000 ) == 0) 
+	      Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_INTERMEDIATE,NULL,
+				"(AGD) peak runaway: adding point (%d,%d,%.2f) to list (count %d)",
+				x1,y1,image[(y1*naxis1)+x1],(w_object->numpix));	      
+#endif
+
 	    if(!Point_List_Add(&point_list,&point_count,&last_point,x1,y1))
 	      return FALSE;
+
+
+
 	  }
 	}/* end for on y1 */
       }/* end for on x1 */
-    }
+    } /* end of if pixel value above current peak */
+
 
     /* if already added to object */
     /* -------------------------- */
     else {
-      #if LOGGING > 9
+
+
+#if LOGGING > 9
       Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 			"pixel %d,%d already added to object, ignoring.",cx,cy);
-      #endif
+#endif
     }
     
     /* delete processed point */
     /* ---------------------- */
-    #if LOGGING > 9
+
+#if LOGGING > 9
     Object_Log_Format("object","object.c","Object_Find_Peak",LOG_VERBOSITY_VERY_VERBOSE,NULL,
 		      "deleting point %d,%d from list.",cx,cy);
-    #endif
+#endif
     if(!Point_List_Remove_Head(&point_list,&point_count))
       return FALSE;
 
@@ -2192,7 +2404,8 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
 	  return FALSE;
 	}
       /* add new point to end of list */
-      (*last_point)->next_point = new_point;
+      (*last_point)->next_point = new_point;          /* <---- new pixel added here */
+
     }
   else
     {
@@ -2218,6 +2431,28 @@ static int Point_List_Add(struct Point_Struct **point_list,int *point_count,stru
   /* fill in new point's data */
   new_point->x = x;
   new_point->y = y;
+
+
+
+
+
+
+  /* Log size of object as it's being created here, by noting every nth pixel */
+  /* Don't want log level as high as that which lists every pixel but still higher than 
+     normal level which I think is currently set to 5 */
+
+/* #if LOGGING > 7 */
+/*   if ( ((*point_count) % 10000 ) == 0 ) */
+/*     Object_Log_Format("object","object.c","Point_List_Add",LOG_VERBOSITY_VERY_VERBOSE,NULL, */
+/* 		      "Adding point %d %d to latest object, size now %ld\n",x,y,*point_count); */
+/* #endif */
+
+
+
+
+
+
+
   /* reset last_point to new_point */
   (*last_point) = new_point;
   return TRUE;
@@ -2273,6 +2508,10 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   float aux=0,aux2=0;             /* auxiliary variable */
   float minor=0,major=0;          /* semi-minor and semi-major axes of the object ellipse */
   float ellip;                    /* ellipticity = (major-minor)/major */
+/* RJS making first attempt at ellipse orientation */
+/*   float theta; */
+/* RJS */
+
   HighPixel *curpix;              /* pixel pointer */
   char stellarflag[32];           /* stellar flag string for diagnostics */
 
@@ -2348,10 +2587,23 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
   ellip = (major-minor)/major;
   w_object->ellipticity = ellip;
 
+/* RJS making first attempt at ellipse orientation 
+ * I am not sure how we will want to define orientaion ultimately but for now
+ * I use the standard cartesian convention of measuring anticlockwise from the X
+ * axis so that a horizontal elongation is 0 (or 180) and a vertical elongation is 90 (or -90) */
+/*
+      if ( x2I == y2I ) 
+        theta = 1.5707963268 ; (M_PI / 2 == 90deg)   sets orientation 'vertical' if undefined  
+      else {
+        theta = 0.5 * atan2( (2.0*xy2I) , (x2I-y2I) ); 
+	if (theta < 0) theta += 3.14159265359;	Keep to 0 < theta < 180deg  
+      }
+*/
+/* End RJS */
 
 #if LOGGING > 5
   Object_Log_Format("object","object.c","Object_Calculate_FWHM",LOG_VERBOSITY_VERY_VERBOSE,NULL,
-		    "(%d) a = %.2f, b = %.2f\tellip = %.2f",w_object->objnum,major,minor,ellip);
+		    "(%d) a = %.2f, b = %.2f\tellip = %.2f\ttheta = %.2f",w_object->objnum,major,minor,ellip,theta);
 #endif
  
 
@@ -2429,6 +2681,13 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
       curpix=curpix->next_pixel;                        /* next pixel in object */
     }
 
+/* RJS making first attempt at ellipse orientation */
+/*       if ( sex_sxx == sex_syy ) 
+        theta = PI/4.0;
+      else
+        theta = 0.5 * atan2( (2.0*sex_sxy) , (sex_sxx-sex_syy) ); */
+/* End RJS */
+
     sex_d = sex_s*sex_sxx-sex_sx*sex_sx;
     if (fabs(sex_d) > 0.0) {
       sex_b = -(sex_s*sex_sxy-sex_sx*sex_sy)/sex_d;
@@ -2450,6 +2709,9 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
       w_object->fwhmy = DEFAULT_SEEING_SEXD_ZERO;
       (*fwhm) = DEFAULT_SEEING_SEXD_ZERO;
     }
+
+
+
    
   } /* end of CALCULATE FWHM IF OBJECT IS STELLAR */
 
@@ -2684,6 +2946,12 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.12  2009/08/19 17:54:00  eng
+** Tweaked to apply the MARGIN criteria instead to the object centroid position
+** (xpos,ypos) rather than pixels used in object creation. This is because
+** there's nothing to stop the finding-of-connected-pixels process going into
+** the margin area in some cases.
+**
 ** Revision 1.11  2009/08/11 14:24:32  cjm
 ** Turned down per-pixel logging.
 ** Reenabled rcsid.

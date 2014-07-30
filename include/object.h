@@ -18,7 +18,7 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 /* object.h
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.10 2009-06-12 10:31:38 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/include/object.h,v 1.11 2014-07-30 17:44:44 eng Exp $
 */
 #ifndef OBJECT_H
 #define OBJECT_H
@@ -131,6 +131,7 @@ extern void Object_Error_To_String(char *error_string);
 extern int Object_Get_Error_Number(void);
 extern void Object_Warning(void);
 extern int Object_Stellar_Ellipticity_Limit_Set(float limit);
+extern int Object_Saturation_Limit_Set(float saturation);
 extern void Object_Get_Current_Time_String(char *time_string,int string_length);
 extern void Object_Log_Format(char *sub_system,char *source_filename,char *function,int level,char *category,
 			      char *format,...);

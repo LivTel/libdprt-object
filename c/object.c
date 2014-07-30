@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.13 2014-07-30 17:26:41 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.14 2014-07-30 17:42:09 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.13 $
+ * @version $Revision: 1.14 $
  */
 
 
@@ -39,6 +39,10 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.13  2014/07/30 17:26:41  eng
+  Added Object_Saturation_Limit_Set() to allow the calling application to define
+  a saturation limit for teh detector that overrides the built in default.
+
   Revision 1.12  2009/08/19 17:54:00  eng
   Tweaked to apply the MARGIN criteria instead to the object centroid position
   (xpos,ypos) rather than pixels used in object creation. This is because
@@ -276,6 +280,12 @@
  */
 #define DEFAULT_STELLAR_ELLIP_LIMIT   (0.3)
 
+/**
+ * Default saturation limit (ADU) for the detector 
+ */
+#define DEFAULT_SATURATION_LIMIT   (63000)
+
+
 #define MAX_N_FWHM            (17)          /* deliberately chosen to be odd */
 #define MAX_N_FWHM_MID        (8)           /* median for 11 items with c-like counting from zero */
 
@@ -353,7 +363,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.13 2014-07-30 17:26:41 eng Exp $";
+static char rcsid[] = "$Id: object.c,v 1.14 2014-07-30 17:42:09 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -380,6 +390,12 @@ static char Object_Buff[OBJECT_ERROR_STRING_LENGTH];
  * @see #DEFAULT_STELLAR_ELLIP_LIMIT
  */
 static float Stellar_Ellipticity_Limit = DEFAULT_STELLAR_ELLIP_LIMIT;
+/**
+ * Max good value of detector array in ADU before a source is considered to 
+ * be saturated. 
+ * @see #DEFAULT_SATURATION_LIMIT
+ */
+static float Saturation_Limit = DEFAULT_SATURATION_LIMIT;
 
 /* ------------------------------------------------------- */
 /* internal function declarations */
@@ -465,6 +481,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
   int obj_area;                             /* number of pixels in object */
   float obj_fwhm;                           /* object fwhm in pixels */
   float obj_dia;                            /* object pseudo-diameter (pixels) */
+  float obj_peak			    /* ADU of brightest pixel in the image */
   int mid_posn;                             /* middle position of fwhmarray, to find median */
   int lower_mid_posn,upper_mid_posn;        /* array positions either side of median, for even-sized fwhmarray */
   float median_fwhm;                        /* median fwhm obtained from fwhmarray */
@@ -1012,6 +1029,7 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
     /*   (a) object is stellar,                 */
     /*   (b) fwhm < diameter of object,         */ /* <-- this will remove any 900+ codes */
     /*   (c) fwhm > 0                           */
+    /*   (d) no pixel exceeds Saturation_Limit  */
     /* ---------------------------------------- */
 
     w_object = (*first_object);                                      /* set w_object to first obj in list */
@@ -1019,10 +1037,11 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
       obj_area = w_object->numpix;                                   /* area == numpix                    */
       obj_fwhm = (w_object->fwhmx + w_object->fwhmy)/2.0;            /* calc mean fwhm                    */  
       obj_dia = sqrt( 1.2732 * obj_area);                            /* pseudo-diameter. 1.2732 = 4/pi    */
+      obj_peak = w_object->peak;				     /* Brightest pixel in object         */
 
 
-      /* if fwhm < dia & is stellar & fwhm is +ve */
-      if ((obj_fwhm < obj_dia) && (w_object->is_stellar == 1) && (obj_fwhm > 0.0)) { 
+      /* if fwhm < dia & is stellar & fwhm is +ve & not saturated */
+      if ((obj_fwhm < obj_dia) && (w_object->is_stellar == 1) && (obj_fwhm > 0.0) && (obj_peak < Saturation_Limit) ) { 
 	fwhmarray[usable_count].numpix = obj_area;
 	fwhmarray[usable_count].fwhm = obj_fwhm;
 	fwhmarray[usable_count].objnum = w_object->objnum;
@@ -2946,6 +2965,10 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.13  2014/07/30 17:26:41  eng
+** Added Object_Saturation_Limit_Set() to allow the calling application to define
+** a saturation limit for teh detector that overrides the built in default.
+**
 ** Revision 1.12  2009/08/19 17:54:00  eng
 ** Tweaked to apply the MARGIN criteria instead to the object centroid position
 ** (xpos,ypos) rather than pixels used in object creation. This is because

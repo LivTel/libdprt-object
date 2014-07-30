@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.15 2014-07-30 18:26:21 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.16 2014-07-30 21:38:06 eng Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.15 $
+ * @version $Revision: 1.16 $
  */
 
 
@@ -39,6 +39,11 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.15  2014/07/30 18:26:21  eng
+  Added calculation of ellip_theta, the long axis orientaion of ellipticity in the
+  frame. The value is not yet passed back to the calling application. That comes
+  in the next update.
+
   Revision 1.14  2014/07/30 17:42:09  eng
   Continuation of changes from v1.13. Finished adding teh function that allows you to set
   the saturation level and created a DEFAULT #def to set the satuation to 63000 ADU if not
@@ -372,7 +377,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.15 2014-07-30 18:26:21 eng Exp $";
+static char rcsid[] = "$Id: object.c,v 1.16 2014-07-30 21:38:06 eng Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -2625,6 +2630,7 @@ static void Object_Calculate_FWHM(Object *w_object,float BGmedian,int *is_stella
     /* Keep to 0 < ellip_theta < 180deg */
     if (ellip_theta < 0) ellip_theta += 3.14159265359;
   }
+  w_object->ellip_theta = ellip_theta;
 
 #if LOGGING > 5
   Object_Log_Format("object","object.c","Object_Calculate_FWHM",LOG_VERBOSITY_VERY_VERBOSE,NULL,
@@ -2971,6 +2977,11 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.15  2014/07/30 18:26:21  eng
+** Added calculation of ellip_theta, the long axis orientaion of ellipticity in the
+** frame. The value is not yet passed back to the calling application. That comes
+** in the next update.
+**
 ** Revision 1.14  2014/07/30 17:42:09  eng
 ** Continuation of changes from v1.13. Finished adding teh function that allows you to set
 ** the saturation level and created a DEFAULT #def to set the satuation to 63000 ADU if not

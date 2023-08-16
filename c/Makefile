@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.8 2009-08-11 14:24:48 cjm Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/c/Makefile,v 1.9 2023-08-16 13:39:19 cjm Exp $
 
 include	../../../Makefile.common
 include	../../Makefile.common
@@ -26,7 +26,7 @@ LOGGINGCFLAGS	= -DLOGGING=6
 # If you're insane, disable NULL pointer checks
 MEMORYCFLAGS	= -DMEMORYCHECK
 CFLAGS 		= -g $(CCHECKFLAG) -I$(INCDIR) -I$(CFITSIOINCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR) -L$(LT_LIB_HOME) \
-			$(LOGGINGCFLAGS) $(MEMORYCFLAGS) $(LOG_UDP_CFLAGS)
+			$(LOGGINGCFLAGS) $(MEMORYCFLAGS) $(LOG_UDP_CFLAGS) $(SHARED_LIB_CFLAGS)
 LINTFLAGS 	= -I$(INCDIR) -I$(JNIINCDIR) -I$(JNIMDINCDIR)
 DOCFLAGS 	= -static
 SRCS 		= object.c
@@ -87,6 +87,9 @@ backup: tidy
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.8  2009/08/11 14:24:48  cjm
+# Added comment.
+#
 # Revision 1.7  2009/01/30 15:19:48  cjm
 # Added LOG_UDP location/include to CFLAGS to get logging verbositys.
 #

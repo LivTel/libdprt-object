@@ -19,7 +19,7 @@
 */
 /* object.c
 ** Entry point for Object detection algorithm.
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.16 2014-07-30 21:38:06 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/c/object.c,v 1.17 2023-11-10 16:47:04 cjm Exp $
 */
 /**
  * object.c is the main object detection source file.
@@ -31,7 +31,7 @@
  *     intensity in calc_object_fwhms, when it had already been subtracted in getObjectList_connect_pixels.
  * </ul>
  * @author Chris Mottram, LJMU
- * @version $Revision: 1.16 $
+ * @version $Revision: 1.17 $
  */
 
 
@@ -39,6 +39,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.16  2014/07/30 21:38:06  eng
+  *** empty log message ***
+
   Revision 1.15  2014/07/30 18:26:21  eng
   Added calculation of ellip_theta, the long axis orientaion of ellipticity in the
   frame. The value is not yet passed back to the calling application. That comes
@@ -377,7 +380,7 @@ struct Log_Struct
 /**
  * Revision Control System identifier.
  */
-static char rcsid[] = "$Id: object.c,v 1.16 2014-07-30 21:38:06 eng Exp $";
+static char rcsid[] = "$Id: object.c,v 1.17 2023-11-10 16:47:04 cjm Exp $";
 /**
  * Internal Error Number - set this to a unique value for each location an error occurs.
  */
@@ -875,8 +878,8 @@ int Object_List_Get(float *image,float image_median,int naxis1,int naxis2,float 
     {
       next_object=w_object->nextobject;         /* take copy of next object to go to */
       if((w_object->numpix < npix)
-	 && (w_object->xpos > MARGIN) && (w_object->xpos <(naxis1-MARGIN)) 
-	 && (w_object->ypos > MARGIN) && (w_object->ypos <(naxis2-MARGIN)))
+	 || (w_object->xpos < MARGIN) || (w_object->xpos >(naxis1-MARGIN)) 
+	 || (w_object->ypos < MARGIN) || (w_object->ypos >(naxis2-MARGIN)))
 	{
 
 
@@ -2977,6 +2980,9 @@ int sizefwhm_cmp_by_fwhm(const void *v1, const void *v2)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.16  2014/07/30 21:38:06  eng
+** *** empty log message ***
+**
 ** Revision 1.15  2014/07/30 18:26:21  eng
 ** Added calculation of ellip_theta, the long axis orientaion of ellipticity in the
 ** frame. The value is not yet passed back to the calling application. That comes

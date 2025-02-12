@@ -1,5 +1,5 @@
 # Makefile
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/Makefile,v 1.2 2007-01-09 15:35:17 cjm Exp $ 
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/Makefile,v 1.3 2025-02-12 11:10:59 cjm Exp $ 
 
 include ../../Makefile.common
 include ../Makefile.common
@@ -10,7 +10,13 @@ DIRS = c test
 top:
 	@for i in $(DIRS); \
 	do \
-		(echo making in $$i...; $(MAKE) -C $$i ); \
+		(echo making in $$i...; cd $$i; $(MAKE) ); \
+	done;
+
+static:
+	@for i in $(DIRS); \
+	do \
+		(echo making in $$i...; cd $$i; $(MAKE) static); \
 	done;
 
 checkin:
@@ -35,7 +41,7 @@ clean:
 	$(RM) $(RM_OPTIONS) $(TIDY_OPTIONS)
 	@for i in $(DIRS); \
 	do \
-		(echo clean in $$i...;  $(MAKE) -C $$i clean); \
+		(echo clean in $$i...;  cd $$i; $(MAKE) clean); \
 	done;
 
 tidy:
@@ -54,6 +60,9 @@ backup: tidy checkin
 	compress $(BACKUP_DIR)/libdprt.tar
 
 # $Log: not supported by cvs2svn $
+# Revision 1.2  2007/01/09 15:35:17  cjm
+# Changed 'cd's to make -C.
+#
 # Revision 1.1  2004/02/04 14:08:29  cjm
 # Initial revision
 #

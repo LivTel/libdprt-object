@@ -1,4 +1,4 @@
-# $Header: /space/home/eng/cjm/cvs/libdprt-object/test/Makefile,v 1.3 2012-11-12 16:22:38 cjm Exp $
+# $Header: /space/home/eng/cjm/cvs/libdprt-object/test/Makefile,v 1.4 2025-02-12 11:38:54 cjm Exp $
 
 include ../../../Makefile.common
 include ../../Makefile.common
@@ -53,6 +53,9 @@ checkout:
 
 #
 # $Log: not supported by cvs2svn $
+# Revision 1.3  2012/11/12 16:22:38  cjm
+# makedepend flags.
+#
 # Revision 1.2  2004/08/06 14:15:21  cjm
 # New makedepend path option.
 #
@@ -60,49 +63,3 @@ checkout:
 # Initial revision
 #
 #
-# DO NOT DELETE
-
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/stdio.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/features.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/sys/cdefs.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/wordsize.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/gnu/stubs.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/gnu/stubs-32.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/lib/gcc/i386-redhat-linux/4.1.1/include/stddef.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/types.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/typesizes.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/libio.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/_G_config.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/wchar.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/wchar.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/gconv.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/lib/gcc/i386-redhat-linux/4.1.1/include/stdarg.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/stdio_lim.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/sys_errlist.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/stdlib.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/sys/types.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/time.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/endian.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/endian.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/sys/select.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/select.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/sigset.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/time.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/sys/sysmacros.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/pthreadtypes.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/alloca.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/strings.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/math.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/huge_val.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/mathdef.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/mathcalls.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /home/dev/src/cfitsio3310/include/fitsio.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/lib/gcc/i386-redhat-linux/4.1.1/include/limits.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/lib/gcc/i386-redhat-linux/4.1.1/include/syslimits.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/limits.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/posix1_lim.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/local_lim.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/linux/limits.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /usr/include/bits/posix2_lim.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /home/dev/src/cfitsio3310/include/longnam.h
-/home/dev/bin/libdprt/object/test/i386-linux/object_test.o: /home/dev/src/libdprt/object/include/object.h

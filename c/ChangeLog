@@ -1,0 +1,130 @@
+2008-02-05  Engineer  <eng@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c:
+	Slight tweak to write moffat curve fitting parameters into new w_object variables
+	in Object_Calculate_FWHM.
+
+2008-02-05  Engineer  <eng@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c:
+	Different curve fitting technique than in previous version, implementing a gradient descent (GD) to "home
+	in" on the best fit. Should be faster than brute force method, and more accurate - testing will show. This
+	current implementation is using the default settings for the parameter optimisation routine - see the
+	"optimise" function called from Object_Calculate_FWHM.
+
+	Also added a slight tweak to write moffat curve "best fit" parameters into new w_object variables
+	in Object_Calculate_FWHM.
+
+2008-01-09  Engineer  <eng@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c:
+	Implementation in Object_Calculate_FWHM() of a brute force method of fitting a Moffat curve to the radial
+	profile of each object. Manual testing on a few test objects shows it fits well to the data and produces
+	a FWHM within 0.2 pixels (0.05") of that calculated by IRAF.
+
+	__Radial profile__ entails converting x,y,z -> r,z where r = sqrt((x-xpos)^2 + (y-ypos)^2), i.e. based
+	around the barycentre (1st moment). Using a gsl routine for this as it executes a little faster than
+	standard sqrt math lib function and we have a lot of pixels to work on.
+
+	__Moffat curve__ is a better fit to a stellar radial profile than a gaussian, and is given by the equation
+	y = k * [ 1 + (x/a)^2 ]^(-b), where k = peak at x=0 and a,b are parameters to find. 'k' can be set to the
+	nearest (brightest) pixel to the barycentre as it's close enough.
+
+	This version (coded in December 2007) uses a crude scan through a range of a,b values to find the best fit,
+	purely to enable testing on a large number of objects in many frames.
+
+2007-11-23  Engineer  <eng@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c:
+	Thought some tweaks here were necessary to enable testing of Chris Simpson's idea
+	of a FWHM workaround, but turns out it could all be done in object_test_jmm.c
+	instead. Initially added code was then deleted again, so apart from some different
+	whitespace, the code in this version therefore should be no different from that
+	in the previous version.
+
+2007-11-14  Engineer  <eng@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c:
+	Added extra debugging to print out pixel lists for objects. (CJM)
+
+2007-11-08  john  <jmm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c: Lots of changes...!
+
+2007-09-18  john  <jmm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object_jmm.c: New file.
+
+2007-05-17  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* Makefile: static changes.
+
+2006-09-28  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	Changed "All objects were too small" to be a warning - TRUE returned from Object_List_Get
+	with a NULL object list, and fake seeing etc.
+	This gives it the same response as "No objects found".
+
+2006-06-29  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	Object_Calculate_FWHM now calculates FWHM even if is not stellar (AG change).
+
+2006-05-25  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	Added is_stellar,fwhmx, and fwhmy to the Object_Struct for better seeing determination in client code.
+
+2006-05-16  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c: gnuify: Added GNU General Public License.
+
+2005-03-04  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	Added DEFAULT_BAD_SEEING and changed bad seeing from 10 pixels to 999 pixels,
+	for archive searches.
+
+2005-01-27  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	Changed faked seeing results to 10 pixels from 2 - gives bad seeing measure even
+	in binning 1.
+	Added documentation and prints to say calculated seeing in pixels - conversion done
+	in rjs_dprt.c:dprt_process.
+
+2004-11-22  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c:
+	If Object_Get_List finds no objects in the frame, it now generates a warning and returns TRUE.
+	The returned object list is NULL.
+
+2004-08-06  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* Makefile: New makedepend path option.
+
+2004-02-06  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c: Added reset of Object_Error_Number.
+
+	* object.c: Added protection for no stellar sources.
+
+2004-01-30  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c: Ensure top of list is set to NULL.
+
+2004-01-29  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* object.c: Added Object_Get_Error_Number.
+
+	* Makefile:
+	Reduced and commented LOGGING level, performance enhancement.
+	Added MEMORYCHECK CFLAGS for the insane.
+
+	* object.c: Performance optimisation, of logging routines.
+
+2004-01-26  Chris Mottram  <cjm@ltdevsrv.astro.livjm.ac.uk>
+
+	* Makefile, object.c: New file.
+

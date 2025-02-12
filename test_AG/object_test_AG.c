@@ -26,7 +26,7 @@
 
 */
 /* object_test_AG.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test_AG/object_test_AG.c,v 1.1 2009-03-04 11:21:55 eng Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test_AG/object_test_AG.c,v 1.2 2025-02-12 11:17:24 eng Exp $
 */
 
 
@@ -50,6 +50,9 @@
 
 /*
   $Log: not supported by cvs2svn $
+  Revision 1.1  2009/03/04 11:21:55  eng
+  Initial revision
+
   *
 */
 
@@ -89,19 +92,20 @@ static int fltcmp(const void *v1, const void *v2);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test_AG.c,v 1.1 2009-03-04 11:21:55 eng Exp $";
+static char rcsid[] = "$Id: object_test_AG.c,v 1.2 2025-02-12 11:17:24 eng Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
-static  float *Image_Data_Sort = NULL;                     /* Data in image array - destructively sorted. */
+static float *Image_Data_Sort = NULL;                     /* Data in image array - destructively sorted. */
 static unsigned short *Object_Mask_Data = NULL;            /* Data created from object pixel list showing extent of each object. */
 static int Naxis1;                                         /* Dimensions of data array. */
 static int Naxis2;                                         /* Dimensions of data array. */
 static long int ImageSize;                                 /* Data array size (pixels) */
 static float Median;                                       /* Background median counts */
-static float BGSigma = 10.0;                               /* Threshold sigma level */
+static float BGSigma = 7.0;                                /* Threshold sigma level (was 10.0 on 20120403) */
 static float Background_SD;                                /* Standard deviation of background */
-static float PixelScale = 0.27837;                         /* Pixel scale of binned image (arcsec per binned pixel) */
+static float PixelScale = 0.21920;                         /* Pixel scale of binned image (arcsec per binned pixel) */
+                                                           /* (was 0.27837 on 20120403) */
 static int Log_Level = 0;                                  /* Log level */
 static int verbose = FALSE;                                /* Verbose flag (off by default) */
 
@@ -173,7 +177,7 @@ int main(int argc, char *argv[])
     Load the FITS image into a float array.
   */
   if (verbose)
-    fprintf(stdout,"object_test: loading image\n");
+    fprintf(stdout,"object_test: loading image from %s\n",Input_Filename);
   if(!Load())
     return 3;
 
@@ -226,9 +230,11 @@ int main(int argc, char *argv[])
 
   thresh = Median + (BGSigma * Background_SD);
 
-  if (verbose)
-      fprintf(stdout,"object_test: Median = %.2f, thresholding at 10 sigma (1 sig = %.2f) so thresh = %.2f\n",
-	      Median, Background_SD, thresh);
+  if (verbose){
+    fprintf(stdout,"object_test: measured background: Median = %.2f and StDev (1 sigma) = %.2f\n",Median,Background_SD);
+    fprintf(stdout,"object_test: threshold hard-coded to %.2f sigma in AG config, so thresh passed to object.c = %.2f\n",BGSigma,thresh);
+  }
+
 
   /*
     -------------

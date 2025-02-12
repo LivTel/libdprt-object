@@ -20,10 +20,10 @@ top: ${BINDIR}/object_test docs
 static: ${BINDIR}/object_test_static docs
 
 ${BINDIR}/object_test: ${BINDIR}/object_test.o $(LT_LIB_HOME)/libdprt_object.so
-	$(CC) -o $@ ${BINDIR}/object_test.o -L/home/dev/bin/lib/i386-linux -ldprt_object -lcfitsio $(TIMELIB) -lm -lc
+	$(CC) -o $@ ${BINDIR}/object_test.o -L$(LT_LIB_HOME) -ldprt_object -lcfitsio $(TIMELIB) -lm -lc
 
 ${BINDIR}/object_test_static: ${BINDIR}/object_test.o $(LT_LIB_HOME)/libdprt_object.a
-	$(CC) -static -o $@ ${BINDIR}/object_test.o -L/home/dev/bin/lib/i386-linux -ldprt_object -lcfitsio $(TIMELIB) -lm -lc
+	$(CC) -static -o $@ ${BINDIR}/object_test.o -L$(LT_LIB_HOME) -ldprt_object -lcfitsio $(TIMELIB) -lm -lc
 
 ${BINDIR}/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

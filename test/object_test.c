@@ -29,7 +29,7 @@
 
 */
 /* object_test.c
-** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.8 2009-01-30 15:22:55 cjm Exp $
+** $Header: /space/home/eng/cjm/cvs/libdprt-object/test/object_test.c,v 1.9 2025-02-12 11:39:49 cjm Exp $
 */
 
 
@@ -50,6 +50,9 @@
  *
  *
   $Log: not supported by cvs2svn $
+  Revision 1.8  2009/01/30 15:22:55  cjm
+  Swapped Bitwise -> Absolute log level filtering.
+
   Revision 1.7  2008/10/08 10:30:46  eng
   Tweaked "brightest object" loop to use a copy of object_list rather tha   the real thing, to avoid problems further down the code when plotting
   object mask output fits image.
@@ -94,6 +97,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 #include "fitsio.h"
@@ -125,14 +129,14 @@ static int difftimems(struct timespec start_time,struct timespec stop_time);
 /* ------------------------------------------------------- */
 
 /* Revision Control System identifier */
-static char rcsid[] = "$Id: object_test.c,v 1.8 2009-01-30 15:22:55 cjm Exp $";
+static char rcsid[] = "$Id: object_test.c,v 1.9 2025-02-12 11:39:49 cjm Exp $";
 static char Input_Filename[256] = "";                      /* Filename of file to be processed. */
 static char Output_Filename[256] = "";                     /* Filename of file to be output. */
 static float *Image_Data = NULL;                           /* Data in image array. */
 static unsigned short *Object_Mask_Data = NULL;            /* Data created from object pixel list showing extent of each object. */
 static int Naxis1;                                         /* Dimensions of data array. */
 static int Naxis2;                                         /* Dimensions of data array. */
-static float Median;                                       /* Background median counts */
+static float Median = 0.0;                                 /* Background median counts */
 static float Background_SD;                                /* Standard deviation of background */
 static float PixelScale;                                   /* Pixel scale of binned image (arcsec per binned pixel) */
 static float Threshold = -1.0;                             /* Default nonsense value, only set if by argument */
@@ -224,7 +228,10 @@ int main(int argc, char *argv[])
   if (Threshold_Set_Flag){
     thresh = Threshold;
     if (verbose)
-      fprintf(stdout,"object_test: threshold set explicitly to %f counts.",thresh);
+    {
+	    fprintf(stdout,"object_test: threshold set explicitly to %f counts with median %f counts.\n",
+		    thresh,Median);
+    }
   }
   else {
     thresh = Median + ( BGSigma * Background_SD );
@@ -256,21 +263,32 @@ int main(int argc, char *argv[])
   brightest_y = 0.0;
   brightest_count = 0.0;
   tmp_object = object_list; /* loop through this copy & leave object_list itself alone */
-  while (tmp_object != NULL){
-    bc = tmp_object->total;
-    if (bc > brightest_count){
-      brightest_count = bc;
-      brightest_x = tmp_object->xpos;
-      brightest_y = tmp_object->ypos;
-    }
-    tmp_object = tmp_object->nextobject;
+  while (tmp_object != NULL)
+  {
+	  if (verbose)
+	  {
+		  fprintf(stdout,"object_test: object %d: x = %.2f y = %.2f total counts = %.2f numpix = %d "
+			  "peak counts = %.2f is_stellar = %d fwhmx = %.2f fwhmy = %.2f ellipticity = %.2f.\n",
+			  tmp_object->objnum,tmp_object->xpos,tmp_object->ypos,tmp_object->total,tmp_object->numpix,
+			  tmp_object->peak,tmp_object->is_stellar,tmp_object->fwhmx,tmp_object->fwhmy,
+			  tmp_object->ellipticity);
+	  }
+	  bc = tmp_object->total;
+	  if (bc > brightest_count)
+	  {
+		  brightest_count = bc;
+		  brightest_x = tmp_object->xpos;
+		  brightest_y = tmp_object->ypos;
+	  }
+	  tmp_object = tmp_object->nextobject;
   }
 
 
   /* ----------------- */
   /* PRINT OUT RESULTS */
   /* ----------------- */
-  if (verbose){
+  if (verbose)
+  {
     fprintf(stdout,"object_test: The procedure took %d ms.\n",difftimems(start_time,stop_time));
     fprintf(stdout,"object_test: The seeing was %.2f pixels (%.2f arcsec) with seeing_flag = %d (0 is good).\n",
 	    seeing,seeing*PixelScale,seeing_flag);
@@ -334,140 +352,165 @@ int main(int argc, char *argv[])
  * @see #Input_Filename
  * @see #Output_Filename
  * @see #Median
- * @see #Background_SD
  */
 static int Parse_Args(int argc,char *argv[])
 {
-  int i,retval;
-  int call_help = FALSE;
+	int i,retval;
+	int call_help = FALSE;
 
-  strcpy(Input_Filename,"");
-  strcpy(Output_Filename,"");
+	strcpy(Input_Filename,"");
+	strcpy(Output_Filename,"");
 
-  for(i=1;i<argc;i++){
+	for(i=1;i<argc;i++)
+	{
 
-    /* ---- */
-    /* HELP */
-    /* ---- */
-   
-    if(strcmp(argv[i],"-help")==0)
-      call_help = TRUE;
+		/* ---- */
+		/* HELP */
+		/* ---- */
+		if(strcmp(argv[i],"-help")==0)
+		{
+			call_help = TRUE;
+		}
+		/* ------------- */
+		/* LOGGING LEVEL */
+		/* ------------- */
     
-
-    /* ------------ */
-    /* VERBOSE FLAG */
-    /* ------------ */
-    else if ((strcmp(argv[i],"-verbose")==0)||(strcmp(argv[i],"-v")==0)){
-      verbose = TRUE;
-      fprintf(stdout,"object_test: Parse_Args: verbose ON\n");
-    }
-
-
-    /* ------------- */
-    /* LOGGING LEVEL */
-    /* ------------- */
-    
-    else if((strcmp(argv[i],"-log_level")==0)||(strcmp(argv[i],"-l")==0)){
-      if((i+1) < argc){
-	retval = sscanf(argv[i+1],"%d",&Log_Level);
-	if(retval != 1){
-	  fprintf(stderr,"object_test: Parse_Args: log level parameter %s not an integer.\n",argv[i+1]);
-	  return FALSE;
+		else if((strcmp(argv[i],"-log_level")==0)||(strcmp(argv[i],"-l")==0))
+		{
+			if((i+1) < argc)
+			{
+				retval = sscanf(argv[i+1],"%d",&Log_Level);
+				if(retval != 1)
+				{
+					fprintf(stderr,"object_test: Parse_Args: "
+						"log level parameter %s not an integer.\n",argv[i+1]);
+					return FALSE;
+				}
+				i++;
+			}
+			else
+			{
+				fprintf(stderr,"object_test: Parse_Args: log level parameter missing.\n");
+				return FALSE;
+			}
+		}
+		else if ((strcmp(argv[i],"-median")==0)||(strcmp(argv[i],"-m")==0))
+		{
+			if((i+1) < argc)
+			{
+				retval = sscanf(argv[i+1],"%f",&Median);
+				if(retval != 1)
+				{
+					fprintf(stderr,"object_test: Parse_Args: Median parameter %s not a float.\n",
+						argv[i+1]);
+					return FALSE;
+				}
+				i++;
+			}
+			else 
+			{
+				fprintf(stderr,"object_test: Parse_Args: -median requies a float.\n");
+				return FALSE;
+			}
+		}
+		/* ----------------------- */
+		/* OBJECT FITS OUTPUT FILE */
+		/* ----------------------- */
+		else if((strcmp(argv[i],"-output")==0)||(strcmp(argv[i],"-o")==0))
+		{
+			if((i+1) < argc)
+			{
+				strcpy(Output_Filename,argv[i+1]);
+				i++;
+			}
+			else
+			{
+				fprintf(stderr,"object_test: Parse_Args: output filename missing.\n");
+				return FALSE;
+			}
+		}
+		/* ----------------------- */
+		/* THRESHOLD LEVEL (SIGMA) */
+		/* ----------------------- */
+		else if ((strcmp(argv[i],"-sigma")==0)||(strcmp(argv[i],"-s")==0))
+		{
+			if((i+1) < argc)
+			{
+				retval = sscanf(argv[i+1],"%f",&BGSigma);
+				if(retval != 1)
+				{
+					fprintf(stderr,"object_test: Parse_Args: BGSigma parameter %s not a float.\n",
+						argv[i+1]);
+					return FALSE;
+				}
+				BGSigma_Set_Flag = TRUE;
+				i++;
+			}
+			else 
+			{
+				fprintf(stderr,"object_test: Parse_Args: BGSigma parameter missing.\n");
+				return FALSE;
+			}
+		}
+		/* ------------------------ */
+		/* THRESHOLD LEVEL (COUNTS) */
+		/* ------------------------ */
+		else if ((strcmp(argv[i],"-threshold")==0)||(strcmp(argv[i],"-t")==0))
+		{
+			if((i+1) < argc)
+			{
+				retval = sscanf(argv[i+1],"%f",&Threshold);
+				if(retval != 1)
+				{
+					fprintf(stderr,"object_test: Parse_Args: "
+						"threshold parameter %s not a float.\n",argv[i+1]);
+					return FALSE;
+				}
+				Threshold_Set_Flag = TRUE;
+				i++;
+			}
+			else 
+			{
+				fprintf(stderr,"object_test: Parse_Args: threshold parameter missing.\n");
+				return FALSE;
+			}
+		}
+		/* ------------ */
+		/* VERBOSE FLAG */
+		/* ------------ */
+		else if ((strcmp(argv[i],"-verbose")==0)||(strcmp(argv[i],"-v")==0)){
+			verbose = TRUE;
+			fprintf(stdout,"object_test: Parse_Args: verbose ON\n");
+		}
+		/* --------------- */
+		/* INPUT FITS FILE */
+		/* --------------- */
+		else
+		{
+			strcpy(Input_Filename,argv[i]);
+		}
 	}
-	i++;
-      }
-      else {
-	fprintf(stderr,"object_test: Parse_Args: log level parameter missing.\n");
-	return FALSE;
-      }
-    }
-    
-
-    /* ----------------------- */
-    /* OBJECT FITS OUTPUT FILE */
-    /* ----------------------- */
-
-    else if((strcmp(argv[i],"-output")==0)||(strcmp(argv[i],"-o")==0)){
-      if((i+1) < argc){
-	strcpy(Output_Filename,argv[i+1]);
-	i++;
-      }
-      else {
-	fprintf(stderr,"object_test: Parse_Args: output filename missing.\n");
-	return FALSE;
-      }
-    }
-
-
-    /* ------------------------ */
-    /* THRESHOLD LEVEL (COUNTS) */
-    /* ------------------------ */
-    
-    else if ((strcmp(argv[i],"-threshold")==0)||(strcmp(argv[i],"-t")==0)){
-      if((i+1) < argc){
-	retval = sscanf(argv[i+1],"%f",&Threshold);
-	if(retval != 1){
-	  fprintf(stderr,"object_test: Parse_Args: threshold parameter %s not a float.\n",argv[i+1]);
-	  return FALSE;
-	}
-	Threshold_Set_Flag = TRUE;
-	i++;
-      }
-      else {
-	fprintf(stderr,"object_test: Parse_Args: threshold parameter missing.\n");
-	return FALSE;
-      }
-    }
-
-    /* ----------------------- */
-    /* THRESHOLD LEVEL (SIGMA) */
-    /* ----------------------- */
-    
-    else if ((strcmp(argv[i],"-sigma")==0)||(strcmp(argv[i],"-s")==0)){
-      if((i+1) < argc){
-	retval = sscanf(argv[i+1],"%f",&BGSigma);
-	if(retval != 1){
-	  fprintf(stderr,"object_test: Parse_Args: BGSigma parameter %s not a float.\n",argv[i+1]);
-	  return FALSE;
-	}
-	BGSigma_Set_Flag = TRUE;
-	i++;
-      }
-      else {
-	fprintf(stderr,"object_test: Parse_Args: BGSigma parameter missing.\n");
-	return FALSE;
-      }
-    }
-
-    /* --------------- */
-    /* INPUT FITS FILE */
-    /* --------------- */
-
-    else
-      strcpy(Input_Filename,argv[i]);
-  }
   
 
-  /* ------- */
-  /* DO HELP */
-  /* ------- */
-  if(call_help){
-    Help();
-    return FALSE;
-  }
+	/* ------- */
+	/* DO HELP */
+	/* ------- */
+	if(call_help)
+	{
+		Help();
+		return FALSE;
+	}
   
   
-  /* ------------------ */
-  /* THRESHOLD CONFLICT */
-  /* ------------------ */
-  if (( Threshold_Set_Flag == TRUE ) && ( BGSigma_Set_Flag == TRUE )){
-    fprintf(stderr,"object_test: Parse_Args: Cannot set threshold in both absolute counts _and_ sigma.\n");
-    return FALSE;
-  }
-
-
-
-  return TRUE;
+	/* ------------------ */
+	/* THRESHOLD CONFLICT */
+	/* ------------------ */
+	if (( Threshold_Set_Flag == TRUE ) && ( BGSigma_Set_Flag == TRUE ))
+	{
+		fprintf(stderr,"object_test: Parse_Args: Cannot set threshold in both absolute counts _and_ sigma.\n");
+		return FALSE;
+	}
+	return TRUE;
 }
 
 
@@ -479,18 +522,21 @@ static int Parse_Args(int argc,char *argv[])
  */
 static void Help(void)
 {
-  fprintf(stdout,"object_test: Tests the object finding routine in libdprt_object.\n");
-  fprintf(stdout,"object_test [-h[elp]] [-v[erbose]] [-l[og_level] <level>]\n");
-  fprintf(stdout,"\t[-t[hreshold] <counts>] [-s[igma] <sigma>]\n");  
-  fprintf(stdout,"\t<FITS filename>  [-o[utput] <FITS filename>]\n");
-  fprintf(stdout,"-help prints this help message and exits.\n");
-  fprintf(stdout,"-verbose prints progress to stdout (default off).\n");
-  fprintf(stdout,"-log_level sets the amount of logging produced.\n");
-  fprintf(stdout,"-threshold sets the threshold level in counts\n");
-  fprintf(stdout,"-sigma sets the threshold level in sigma (default 10.0)\n");
-  fprintf(stdout,"-output writes an object mask to the specified FITS filename.\n");
-  fprintf(stdout,"You must always specify a filename to reduce.\n");
-  fprintf(stdout,"Ideally, pass in a flat-fielded de-biased image.\n");
+	fprintf(stdout,"object_test: Tests the object finding routine in libdprt_object.\n");
+	fprintf(stdout,"object_test [-h[elp]] [-v[erbose]] [-l[og_level] <level>]\n");
+	fprintf(stdout,"\t[-m[edian] <counts>][-t[hreshold] <counts>] [-s[igma] <sigma>]\n");  
+	fprintf(stdout,"\t<FITS filename>  [-o[utput] <FITS filename>]\n");
+	fprintf(stdout,"-help prints this help message and exits.\n");
+	fprintf(stdout,"-verbose prints progress to stdout (default off).\n");
+	fprintf(stdout,"-log_level sets the amount of logging produced.\n");
+	fprintf(stdout,"-median sets the median background level in counts\n");
+	fprintf(stdout,"-threshold sets the threshold level in counts\n");
+	fprintf(stdout,"-sigma sets the threshold level in sigma (default 10.0)\n");
+	fprintf(stdout,"-output writes an object mask to the specified FITS filename.\n");
+	fprintf(stdout,"You must always specify a filename to reduce.\n");
+	fprintf(stdout,"Ideally, pass in a flat-fielded de-biased image.\n");
+	fprintf(stdout,"Use -sigma to let object_test determine the threshold level (the input FITS image requies L1MEDIAN/STDDEV).\n");
+	fprintf(stdout,"Use -median and -threshold to pass in your own threshold levels.\n");
 }
 
 
@@ -510,6 +556,8 @@ static int Load(void)
   fitsfile *fits_fp = NULL;
   int retval=0,status=0,integer_value;
 
+  if (verbose)
+	  fprintf(stdout,"object_test: Loading image: %s.\n",Input_Filename);
   /* 
      open file 
      ---------
@@ -528,6 +576,7 @@ static int Load(void)
   retval = fits_read_key(fits_fp,TINT,"NAXIS",&integer_value,NULL,&status);
   if(retval)
     {
+	    fprintf(stderr,"object_test: Failed to get NAXIS keyword.\n");
       fits_report_error(stderr,status);
       fits_close_file(fits_fp,&status);
       return FALSE;
@@ -545,28 +594,33 @@ static int Load(void)
     get median background value
     ---------------------------
   */
-  retval = fits_read_key(fits_fp,TFLOAT,"L1MEDIAN",&Median,NULL,&status);
-  if(retval)
-    {
-      fits_report_error(stderr,status);
-      fits_close_file(fits_fp,&status);
-      return FALSE;
-    }
-  
+  if(Threshold_Set_Flag == FALSE)
+  {
+	  retval = fits_read_key(fits_fp,TFLOAT,"L1MEDIAN",&Median,NULL,&status);
+	  if(retval)
+	  {
+		  fprintf(stderr,"object_test: Failed to get L1MEDIAN keyword.\n");
+		  fits_report_error(stderr,status);
+		  fits_close_file(fits_fp,&status);
+		  return FALSE;
+	  }
+  }
 
   /*
     get background standard deviation (1-sigma) value
     -------------------------------------------------
   */
-  retval = fits_read_key(fits_fp,TFLOAT,"STDDEV",&Background_SD,NULL,&status);
-  if(retval)
-    {
-      fits_report_error(stderr,status);
-      fits_close_file(fits_fp,&status);
-      return FALSE;
-    }
-
-
+  if(Threshold_Set_Flag == FALSE)
+  {
+	  retval = fits_read_key(fits_fp,TFLOAT,"STDDEV",&Background_SD,NULL,&status);
+	  if(retval)
+	  {
+		  fprintf(stderr,"object_test: Failed to get STDDEV keyword.\n");
+		  fits_report_error(stderr,status);
+		  fits_close_file(fits_fp,&status);
+		  return FALSE;
+	  }
+  }
   /*
     get pixelscale value
     --------------------
@@ -574,9 +628,16 @@ static int Load(void)
   retval = fits_read_key(fits_fp,TFLOAT,"CCDSCALE",&PixelScale,NULL,&status);
   if(retval)
     {
+	    fprintf(stderr,"object_test: Failed to get CCDSCALE keyword.\n");
       fits_report_error(stderr,status);
+      /* reset error */
+      PixelScale = 0.0;
+      status = 0;
+      retval = FALSE;
+      /*
       fits_close_file(fits_fp,&status);
       return FALSE;
+      */
     }
 
 
@@ -587,6 +648,7 @@ static int Load(void)
   retval = fits_read_key(fits_fp,TINT,"NAXIS1",&Naxis1,NULL,&status);
   if(retval)
     {
+	    fprintf(stderr,"object_test: Failed to get NAXIS1 keyword.\n");
       fits_report_error(stderr,status);
       fits_close_file(fits_fp,&status);
       return FALSE;
@@ -594,11 +656,14 @@ static int Load(void)
   retval = fits_read_key(fits_fp,TINT,"NAXIS2",&Naxis2,NULL,&status);
   if(retval)
     {
+	    fprintf(stderr,"object_test: Failed to get NAXIS2 keyword.\n");
       fits_report_error(stderr,status);
       fits_close_file(fits_fp,&status);
       return FALSE;
     }
 
+  if (verbose)
+	  fprintf(stdout,"object_test: Allocating image (%d x %d).\n",Naxis1,Naxis2);
 
   /*
     allocate image memory
@@ -638,6 +703,8 @@ static int Load(void)
       fits_report_error(stderr,status);
       return FALSE;
     }
+  if (verbose)
+	  fprintf(stdout,"object_test: Load finished.\n");
   return TRUE;
 }
 
@@ -836,6 +903,9 @@ static int difftimems(struct timespec start_time,struct timespec stop_time)
 
 /*
 ** $Log: not supported by cvs2svn $
+** Revision 1.8  2009/01/30 15:22:55  cjm
+** Swapped Bitwise -> Absolute log level filtering.
+**
 ** Revision 1.7  2008/10/08 10:30:46  eng
 ** Tweaked "brightest object" loop to use a copy of object_list rather tha   the real thing, to avoid problems further down the code when plotting
 ** object mask output fits image.
